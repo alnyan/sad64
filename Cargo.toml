@@ -1,0 +1,8 @@
+[package]
+name = "sad64"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bitmatch = "0.1.1"
+elf = "0.7.4"
