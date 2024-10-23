@@ -1,4 +1,4 @@
-use std::fmt;
+use core::fmt;
 
 macro_rules! system_regs {
     (

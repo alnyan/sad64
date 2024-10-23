@@ -1,11 +1,11 @@
 #![allow(non_snake_case, non_camel_case_types)]
 #![feature(if_let_guard)]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 mod decode;
 mod mnemonic;
 mod msr;
 mod operand;
-mod util;
 
 #[cfg(feature = "std")]
 mod format;
@@ -22,8 +22,8 @@ pub use operand::{
 
 #[derive(Debug)]
 pub struct Instruction {
-    mnemonic: Mnemonic,
-    operands: [Option<Operand>; 4],
+    pub mnemonic: Mnemonic,
+    pub operands: [Option<Operand>; 4],
 }
 
 pub fn decode(insn: u32) -> Option<Instruction> {
