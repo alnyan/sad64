@@ -3,7 +3,16 @@ name = "sad64"
 version = "0.1.0"
 edition = "2021"
 
+[[example]]
+name = "disasm"
+
 [dependencies]
 bitmatch = "0.1.1"
+
+[dev-dependencies]
 elf = "0.7.4"
 rangemap = "1.5.1"
+
+[features]
+default = ["std"]
+std = []

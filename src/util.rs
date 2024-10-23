@@ -4,8 +4,6 @@ macro_rules! impl_number_like {
     ($($ty:ty),+) => {
         $(
             impl NumberLike for $ty {
-                const ZERO: Self = 0;
-
                 fn absolute(&self) -> Self {
                     self.abs()
                 }
@@ -19,8 +17,6 @@ macro_rules! impl_number_like {
 }
 
 pub trait NumberLike {
-    const ZERO: Self;
-
     fn absolute(&self) -> Self;
     fn sign(&self) -> bool;
 }
