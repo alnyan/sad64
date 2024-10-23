@@ -85,7 +85,7 @@ fn decode_exception(insn: u32) -> Option<Instruction> {
             operands: [Some(Operand::Imm(i as _)), None, None, None],
         }),
         // dcps1/dcps2/dcps3 #imm
-        (0b101, 0b000, 1 | 2 | 3) => {
+        (0b101, 0b000, 1..=3) => {
             let mnemonic = match L {
                 1 => Mnemonic::dcps1,
                 2 => Mnemonic::dcps2,

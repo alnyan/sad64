@@ -729,7 +729,7 @@ fn decode_ldst_reg_uimm(insn: u32) -> Option<Instruction> {
                 mnemonic,
                 operands: [
                     Some(Rt),
-                    Some(Operand::MemXSpOff(N as u8, IndexMode::Unsigned(i as u64))),
+                    Some(Operand::MemXSpOff(N, IndexMode::Unsigned(i as u64))),
                     None,
                     None,
                 ],
