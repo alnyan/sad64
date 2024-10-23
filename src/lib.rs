@@ -49,22 +49,22 @@ impl Formatter for SimpleFormatter {
                     let address = pc.wrapping_add_signed(imm);
 
                     match resolver.resolve(address) {
-                        Some((location, 0)) => print!("{:#x} <{}>", Signed(imm), location),
+                        Some((location, 0)) => print!("{:#x} <{}>", address, location),
                         Some((location, offset)) => {
-                            print!("{:#x} <{} + {}>", Signed(imm), location, offset)
+                            print!("{:#x} <{} + {:#x}>", address, location, offset)
                         }
-                        None => print!("pc{:+#x}", Signed(imm)),
+                        None => print!("{:#x}", address),
                     }
                 }
                 Operand::Adrp(imm) => {
                     let address = (pc.wrapping_add_signed(imm)) & !0xFFF;
 
                     match resolver.resolve(address) {
-                        Some((location, 0)) => print!("{:#x} <{}>", Signed(imm), location),
+                        Some((location, 0)) => print!("{:#x} <{}>", address, location),
                         Some((location, offset)) => {
-                            print!("{:#x} <{} + {}>", Signed(imm), location, offset)
+                            print!("{:#x} <{} + {:#x}>", address, location, offset)
                         }
-                        None => print!("pc{:+#x}", Signed(imm)),
+                        None => print!("{:#x}", address),
                     }
                 }
 
@@ -125,10 +125,14 @@ impl Formatter for SimpleFormatter {
 
                 Operand::Barrier(b) => print!("{}", b),
                 Operand::Sys(s) => print!("{}", s),
-                Operand::Tlbi(t) => print!("{:?}", t),
+                Operand::SysC(n, m) => print!("c{}, c{}", n, m),
+                Operand::SysOp(t) => print!("{}", t),
+                Operand::Daifset => print!("daifset"),
+                Operand::Daifclr => print!("daifclr"),
+                Operand::Spsel => print!("spsel"),
 
                 Operand::Cond(cond) => {
-                    print!("{}", cond)
+                    print!("{:?}", cond)
                 }
             }
         }

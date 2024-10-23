@@ -25,7 +25,11 @@ pub enum Operand {
 
     Barrier(Barrier),
     Sys(SystemReg),
-    Tlbi(Tlbi),
+    SysC(u8, u8),
+    SysOp(SysOp),
+    Daifset,
+    Daifclr,
+    Spsel,
 
     Cond(BranchCondition),
 }
@@ -34,8 +38,8 @@ pub enum Operand {
 pub enum BranchCondition {
     eq,
     ne,
-    cs,
-    cc,
+    hs,
+    lo,
     hi,
     ls,
     ge,
@@ -67,6 +71,41 @@ pub enum RegExtendWord {
 pub struct RegExtend {
     pub word: RegExtendWord,
     pub amount: u8,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum At {
+    s1e1r,
+    s1e2r,
+    s1e3r,
+    s1e1w,
+    s1e2w,
+    s1e3w,
+    s1e0r,
+    s1e0w,
+    s12e1r,
+    s12e1w,
+    s12e0r,
+    s12e0w,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum Dc {
+    zva,
+    ivac,
+    isw,
+    cvac,
+    csw,
+    cvau,
+    civac,
+    cisw,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum Ic {
+    ialluis,
+    iallu,
+    ivau,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -104,9 +143,9 @@ pub enum Tlbi {
 
 #[derive(Debug, Clone, Copy)]
 pub enum SysOp {
-    At,
-    Dc,
-    Ic,
+    At(At),
+    Dc(Dc),
+    Ic(Ic),
     Tlbi(Tlbi),
 }
 
@@ -141,11 +180,18 @@ pub enum IndexMode {
 impl fmt::Display for Barrier {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let label = match self {
-            Self::All(BarrierDomain::FullSystem) => "sy",
+            Self::Reads(BarrierDomain::InnerShareable) => "ishld",
+            Self::Reads(BarrierDomain::Nonshareable) => "nshld",
+            Self::Reads(BarrierDomain::OuterShareable) => "oshld",
+            Self::Reads(BarrierDomain::FullSystem) => "ld",
+            Self::Writes(BarrierDomain::InnerShareable) => "ishst",
+            Self::Writes(BarrierDomain::Nonshareable) => "nshst",
+            Self::Writes(BarrierDomain::OuterShareable) => "oshst",
             Self::Writes(BarrierDomain::FullSystem) => "st",
             Self::All(BarrierDomain::InnerShareable) => "ish",
-            Self::Reads(BarrierDomain::InnerShareable) => "ishld",
-            _ => todo!(),
+            Self::All(BarrierDomain::Nonshareable) => "nsh",
+            Self::All(BarrierDomain::OuterShareable) => "osh",
+            Self::All(BarrierDomain::FullSystem) => "sy",
         };
 
         f.write_str(label)
@@ -193,8 +239,8 @@ impl TryFrom<u8> for BranchCondition {
         match value {
             0 => Ok(Self::eq),
             1 => Ok(Self::ne),
-            2 => Ok(Self::cs),
-            3 => Ok(Self::cc),
+            2 => Ok(Self::hs),
+            3 => Ok(Self::lo),
             4 => Ok(Self::mi),
             5 => Ok(Self::pl),
             6 => Ok(Self::vs),
@@ -224,26 +270,13 @@ impl fmt::Display for RegExtend {
     }
 }
 
-impl fmt::Display for BranchCondition {
+impl fmt::Display for SysOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let n = match self {
-            Self::eq => "eq",
-            Self::ne => "ne",
-            Self::cs => "cs",
-            Self::cc => "cc",
-            Self::hi => "hi",
-            Self::ls => "ls",
-            Self::ge => "ge",
-            Self::lt => "lt",
-            Self::gt => "gt",
-            Self::le => "le",
-            Self::mi => "mi",
-            Self::pl => "pl",
-            Self::vs => "vs",
-            Self::vc => "vc",
-            Self::al => "al",
-            Self::nv => "nv",
-        };
-        f.write_str(n)
+        match self {
+            Self::At(at) => fmt::Debug::fmt(at, f),
+            Self::Dc(dc) => fmt::Debug::fmt(dc, f),
+            Self::Ic(ic) => fmt::Debug::fmt(ic, f),
+            Self::Tlbi(tlbi) => fmt::Debug::fmt(tlbi, f),
+        }
     }
 }

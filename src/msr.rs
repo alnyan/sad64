@@ -24,7 +24,7 @@ macro_rules! system_regs {
             pub fn decode($dir: DecodeDirection, op0: u8, op1: u8, CRn: u8, CRm: u8, op2: u8) -> Self {
                 match (op0, op1, CRn, CRm, op2) {
                     $( ($op0, $op1, $CRn, $CRm, $op2) $(if $if_expr)? => Self::$name $(($param))?, )+
-                    _ => todo!("{op0:02b} {op1:03b} {CRn:04b} {CRm:04b} {op2:03b}"),
+                    _ => Self::Other { op0, op1, CRn, CRm, op2 },
                 }
             }
         }
@@ -253,7 +253,7 @@ impl fmt::Display for SystemReg {
                 CRn,
                 CRm,
                 op2,
-            } => f.write_fmt(format_args!("S{op0}_{op1}_{CRn}_{CRm}_{op2}")),
+            } => f.write_fmt(format_args!("S{op0}_{op1}_C{CRn}_C{CRm}_{op2}")),
             Self::dbgbcr_n_el1(n) => f.write_fmt(format_args!("dbrbcr{}_el1", n)),
             _ => fmt::Debug::fmt(self, f),
         }

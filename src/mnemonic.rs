@@ -14,6 +14,7 @@ pub enum Mnemonic {
     ands,
     asr,
     asrv,
+    at,
     b,
     bfi,
     bfm,
@@ -38,12 +39,20 @@ pub enum Mnemonic {
     csinc,
     csinv,
     csneg,
+    dc,
+    dcps1,
+    dcps2,
+    dcps3,
     dmb,
+    drps,
     dsb,
     eor,
     eret,
     extr,
+    hint,
+    hlt,
     hvc,
+    ic,
     isb,
     ldar,
     ldarb,
@@ -94,6 +103,7 @@ pub enum Mnemonic {
     sbfm,
     sbfx,
     sev,
+    sevl,
     sdiv,
     smaddl,
     smc,
@@ -122,6 +132,8 @@ pub enum Mnemonic {
     sxtb,
     sxth,
     sxtw,
+    sys,
+    sysl,
     tbnz,
     tbz,
     tlbi,
@@ -139,13 +151,15 @@ pub enum Mnemonic {
     uxth,
     wfe,
     wfi,
+    yield_,
     CondB(BranchCondition),
 }
 
 impl fmt::Display for Mnemonic {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::CondB(br) => f.write_fmt(format_args!("b.{}", br)),
+            Self::CondB(br) => f.write_fmt(format_args!("b.{:?}", br)),
+            Self::yield_ => f.write_str("yield"),
             _ => fmt::Debug::fmt(self, f),
         }
     }

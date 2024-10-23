@@ -2,6 +2,7 @@ use bitmatch::bitmatch;
 
 use crate::{
     msr::{DecodeDirection, SystemReg},
+    operand::{At, Dc, Ic},
     Barrier, BarrierDomain, BranchCondition, Instruction, Mnemonic, Operand, SysOp, Tlbi,
 };
 
@@ -29,7 +30,7 @@ pub fn decode_branch(insn: u32) -> Option<Instruction> {
         "?01_0???" => decode_cmp_br_imm(insn),
         // Test & branch (imm)
         "?01_1???" => decode_test_br_imm(insn),
-        _ => todo!(),
+        _ => None,
     }
 }
 
@@ -38,7 +39,7 @@ fn decode_cond_br_imm(insn: u32) -> Option<Instruction> {
     #[bitmatch]
     let "??????? a iiiiiiiiiiiiiiiiiii a cccc" = insn;
     if a != 0 {
-        todo!("Unallocated");
+        return None;
     }
     // B.cond
     let cond = BranchCondition::try_from(c as u8).unwrap();
@@ -58,11 +59,6 @@ fn decode_exception(insn: u32) -> Option<Instruction> {
     let "???????? aaa iiiiiiiiiiiiiiii bbb LL" = insn;
 
     match (a, b, L) {
-        // brk #imm
-        (0b001, 0b000, 0b00) => Some(Instruction {
-            mnemonic: Mnemonic::brk,
-            operands: [Some(Operand::Imm(i as _)), None, None, None],
-        }),
         // svc #imm
         (0b000, 0b000, 0b01) => Some(Instruction {
             mnemonic: Mnemonic::svc,
@@ -78,7 +74,30 @@ fn decode_exception(insn: u32) -> Option<Instruction> {
             mnemonic: Mnemonic::smc,
             operands: [Some(Operand::Imm(i as _)), None, None, None],
         }),
-        _ => todo!(),
+        // brk #imm
+        (0b001, 0b000, 0b00) => Some(Instruction {
+            mnemonic: Mnemonic::brk,
+            operands: [Some(Operand::Imm(i as _)), None, None, None],
+        }),
+        // hlt #imm
+        (0b010, 0b000, 0b00) => Some(Instruction {
+            mnemonic: Mnemonic::hlt,
+            operands: [Some(Operand::Imm(i as _)), None, None, None],
+        }),
+        // dcps1/dcps2/dcps3 #imm
+        (0b101, 0b000, 1 | 2 | 3) => {
+            let mnemonic = match L {
+                1 => Mnemonic::dcps1,
+                2 => Mnemonic::dcps2,
+                3 => Mnemonic::dcps3,
+                _ => unreachable!(),
+            };
+            Some(Instruction {
+                mnemonic,
+                operands: [Some(Operand::Imm(i as _)), None, None, None],
+            })
+        }
+        _ => None,
     }
 }
 
@@ -91,9 +110,37 @@ fn decode_system(insn: u32) -> Option<Instruction> {
     // c - op2
 
     match (L, a, b, N, M, c, T) {
+        // msr immediate
+        (0, 0b00, _, 0b0100, _, _, 0b11111) => {
+            let op0 = match (b, c) {
+                (0b000, 0b101) if M <= 1 => Operand::Spsel,
+                (0b011, 0b110) if M <= 15 => Operand::Daifset,
+                (0b011, 0b111) if M <= 15 => Operand::Daifclr,
+                _ => return None,
+            };
+            let op1 = Operand::Imm(M as _);
+            Some(Instruction {
+                mnemonic: Mnemonic::msr,
+                operands: [Some(op0), Some(op1), None, None],
+            })
+        }
+
         // hint - hints 8 to 127
         (0, 0b00, 0b011, 0b0010, _, _, 0b11111) if M != 0 => {
-            todo!();
+            let hint = (M << 3) | c;
+            let mnemonic = decode_hint(hint);
+
+            if let Some(mnemonic) = mnemonic {
+                Some(Instruction {
+                    mnemonic,
+                    operands: [None, None, None, None],
+                })
+            } else {
+                Some(Instruction {
+                    mnemonic: Mnemonic::hint,
+                    operands: [Some(Operand::Imm(hint as _)), None, None, None],
+                })
+            }
         }
         // nop
         (0, 0b00, 0b011, 0b0010, 0b0000, 0b000, 0b11111) => Some(Instruction {
@@ -101,9 +148,10 @@ fn decode_system(insn: u32) -> Option<Instruction> {
             operands: [None, None, None, None],
         }),
         // yield
-        (0, 0b00, 0b011, 0b0010, 0b0000, 0b001, 0b11111) => {
-            todo!();
-        }
+        (0, 0b00, 0b011, 0b0010, 0b0000, 0b001, 0b11111) => Some(Instruction {
+            mnemonic: Mnemonic::yield_,
+            operands: [None, None, None, None],
+        }),
         // wfe
         (0, 0b00, 0b011, 0b0010, 0b0000, 0b010, 0b11111) => Some(Instruction {
             mnemonic: Mnemonic::wfe,
@@ -120,12 +168,17 @@ fn decode_system(insn: u32) -> Option<Instruction> {
             operands: [None, None, None, None],
         }),
         // sevl
-        (0, 0b00, 0b011, 0b0010, 0b0000, 0b101, 0b1111) => {
-            todo!();
-        }
+        (0, 0b00, 0b011, 0b0010, 0b0000, 0b101, 0b11111) => Some(Instruction {
+            mnemonic: Mnemonic::sevl,
+            operands: [None, None, None, None],
+        }),
         // hint - hints 6/7
         (0, 0b00, 0b011, 0b0010, 0b0000, 0b110 | 0b111, 0b11111) => {
-            todo!();
+            // TODO decode advanced hints
+            Some(Instruction {
+                mnemonic: Mnemonic::hint,
+                operands: [Some(Operand::Imm(c as _)), None, None, None],
+            })
         }
         // clrex
         (0, 0b00, 0b011, 0b0011, _, 0b010, 0b11111) => {
@@ -175,17 +228,44 @@ fn decode_system(insn: u32) -> Option<Instruction> {
             match (N, M) {
                 // sys -> at
                 (0b0111, 0b1000)
-                    if let Some(SysOp::At) = sys_op(b as u8, 0b0111, 0b1000, c as u8) =>
+                    if let Some(SysOp::At(at)) = sys_op(b as u8, 0b0111, 0b1000, c as u8) =>
                 {
-                    todo!()
+                    Some(Instruction {
+                        mnemonic: Mnemonic::at,
+                        operands: [
+                            Some(Operand::SysOp(SysOp::At(at))),
+                            Some(Operand::X(T as u8)),
+                            None,
+                            None,
+                        ],
+                    })
                 }
                 // sys -> dc
-                (0b0111, _) if let Some(SysOp::Dc) = sys_op(b as u8, 0b0111, M as u8, c as u8) => {
-                    todo!()
+                (0b0111, _)
+                    if let Some(SysOp::Dc(dc)) = sys_op(b as u8, 0b0111, M as u8, c as u8) =>
+                {
+                    Some(Instruction {
+                        mnemonic: Mnemonic::dc,
+                        operands: [
+                            Some(Operand::SysOp(SysOp::Dc(dc))),
+                            Some(Operand::X(T as u8)),
+                            None,
+                            None,
+                        ],
+                    })
                 }
                 // sys -> ic
-                (0b0111, _) if let Some(SysOp::Ic) = sys_op(b as u8, 0b0111, M as u8, c as u8) => {
-                    todo!()
+                (0b0111, _)
+                    if let Some(SysOp::Ic(ic)) = sys_op(b as u8, 0b0111, M as u8, c as u8) =>
+                {
+                    let reg = match ic {
+                        Ic::ivau => Some(Operand::X(T as u8)),
+                        _ => None,
+                    };
+                    Some(Instruction {
+                        mnemonic: Mnemonic::ic,
+                        operands: [Some(Operand::SysOp(SysOp::Ic(ic))), reg, None, None],
+                    })
                 }
                 // sys -> tlbi
                 (0b1000, _)
@@ -194,20 +274,43 @@ fn decode_system(insn: u32) -> Option<Instruction> {
                     Some(Instruction {
                         mnemonic: Mnemonic::tlbi,
                         operands: [
-                            Some(Operand::Tlbi(tlbi)),
+                            Some(Operand::SysOp(SysOp::Tlbi(tlbi))),
                             Some(Operand::X(T as u8)),
                             None,
                             None,
                         ],
                     })
                 }
-                _ => todo!(),
+                _ => {
+                    let reg = if T != 0b11111 {
+                        Some(Operand::X(T as u8))
+                    } else {
+                        None
+                    };
+                    Some(Instruction {
+                        mnemonic: Mnemonic::sys,
+                        operands: [
+                            Some(Operand::Imm(b as _)),
+                            Some(Operand::SysC(N as u8, M as u8)),
+                            Some(Operand::Imm(c as _)),
+                            reg,
+                        ],
+                    })
+                }
             }
         }
         // sysl
         (1, 0b01, _, _, _, _, _) => {
             // SYSL <Xt>, #<op1>, <Cn>, <Cm>, #<op2>
-            todo!();
+            Some(Instruction {
+                mnemonic: Mnemonic::sysl,
+                operands: [
+                    Some(Operand::X(T as u8)),
+                    Some(Operand::Imm(b as _)),
+                    Some(Operand::SysC(N as u8, M as u8)),
+                    Some(Operand::Imm(c as _)),
+                ],
+            })
         }
         // msr/mrs
         (_, 0b10 | 0b11, _, _, _, _, _) => {
@@ -226,7 +329,7 @@ fn decode_system(insn: u32) -> Option<Instruction> {
             Some(Instruction { mnemonic, operands })
         }
 
-        _ => todo!(),
+        _ => None,
     }
 }
 
@@ -269,9 +372,12 @@ fn decode_br_reg(insn: u32) -> Option<Instruction> {
             operands: [None, None, None, None],
         }),
         // drps
-        (0b0101, 0b11111, 0b000000, 0b11111, 0b00000) => todo!(),
+        (0b0101, 0b11111, 0b000000, 0b11111, 0b00000) => Some(Instruction {
+            mnemonic: Mnemonic::drps,
+            operands: [None, None, None, None],
+        }),
 
-        _ => unimplemented!(),
+        _ => None,
     }
 }
 
@@ -350,10 +456,51 @@ fn sys_op(op1: u8, crn: u8, crm: u8, op2: u8) -> Option<SysOp> {
     match (crn, crm) {
         // at
         (0b0111, 0b1000) => {
-            todo!();
+            let variant = match (op1, op2) {
+                (0b000, 0b000) => At::s1e1r,
+                (0b100, 0b000) => At::s1e2r,
+                (0b110, 0b000) => At::s1e3r,
+                (0b000, 0b001) => At::s1e1w,
+                (0b100, 0b001) => At::s1e2w,
+                (0b110, 0b001) => At::s1e3w,
+                (0b000, 0b010) => At::s1e0r,
+                (0b000, 0b011) => At::s1e0w,
+                (0b100, 0b100) => At::s12e1r,
+                (0b100, 0b101) => At::s12e1w,
+                (0b100, 0b110) => At::s12e0r,
+                (0b100, 0b111) => At::s12e1w,
+                _ => return None,
+            };
+
+            Some(SysOp::At(variant))
         }
-        // ic/dc
-        (0b0111, _) => todo!(),
+        // ic
+        (0b0111, 0b0001 | 0b0101) => {
+            let variant = match (op1, crm, op2) {
+                (0b000, 0b0001, 0b000) => Ic::ialluis,
+                (0b000, 0b0101, 0b000) => Ic::iallu,
+                (0b011, 0b0101, 0b001) => Ic::ivau,
+                _ => return None,
+            };
+
+            Some(SysOp::Ic(variant))
+        }
+        // dc
+        (0b0111, _) => {
+            let variant = match (op1, crm, op2) {
+                (0b011, 0b0100, 0b001) => Dc::zva,
+                (0b000, 0b0110, 0b001) => Dc::ivac,
+                (0b000, 0b0110, 0b010) => Dc::isw,
+                (0b011, 0b1010, 0b001) => Dc::cvac,
+                (0b000, 0b1010, 0b010) => Dc::csw,
+                (0b011, 0b1011, 0b001) => Dc::cvau,
+                (0b011, 0b1110, 0b001) => Dc::civac,
+                (0b000, 0b1110, 0b010) => Dc::cisw,
+                _ => return None,
+            };
+
+            Some(SysOp::Dc(variant))
+        }
         // tlbi
         (0b1000, _) => {
             let variant = match (op1, crm, op2) {
@@ -391,6 +538,19 @@ fn sys_op(op1: u8, crn: u8, crm: u8, op2: u8) -> Option<SysOp> {
 
             Some(SysOp::Tlbi(variant))
         }
-        _ => todo!(),
+
+        _ => None,
+    }
+}
+
+fn decode_hint(hint: u32) -> Option<Mnemonic> {
+    match hint {
+        0 => Some(Mnemonic::nop),
+        1 => Some(Mnemonic::yield_),
+        2 => Some(Mnemonic::wfe),
+        3 => Some(Mnemonic::wfi),
+        4 => Some(Mnemonic::sev),
+        5 => Some(Mnemonic::sevl),
+        _ => None,
     }
 }

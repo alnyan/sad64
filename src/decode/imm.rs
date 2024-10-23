@@ -22,8 +22,7 @@ pub fn decode_data_imm(_x: u8, insn: u32) -> Option<Instruction> {
         0b110 => decode_bit_field(insn),
         // extract
         0b111 => decode_extract(insn),
-
-        _ => unreachable!(),
+        _ => None,
     }
 }
 
@@ -163,7 +162,7 @@ fn decode_logical_imm(insn: u32) -> Option<Instruction> {
 
     if s == 0 && n == 1 {
         // Unallocated
-        todo!()
+        return None;
     }
 
     let mnemonic = match o {
