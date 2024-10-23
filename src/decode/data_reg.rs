@@ -70,10 +70,10 @@ fn decode_data_2src(insn: u32) -> Option<Instruction> {
         // lslv/lsrv/asrv/rorv
         "0010xx" => {
             let mnemonic = match x {
-                0b00 => Mnemonic::lslv,
+                0b00 => Mnemonic::lsl,
                 0b01 => Mnemonic::lsr,
-                0b10 => Mnemonic::asrv,
-                0b11 => Mnemonic::rorv,
+                0b10 => Mnemonic::asr,
+                0b11 => Mnemonic::ror,
                 _ => unreachable!(),
             };
 
@@ -82,9 +82,36 @@ fn decode_data_2src(insn: u32) -> Option<Instruction> {
                 operands: [Some(Rd), Some(Rn), Some(Rm), None],
             })
         }
-        "010?11" => unimplemented!(),
         // crc...
-        "010xxx" => todo!(),
+        "010xxx" => {
+            let mnemonic = match x {
+                0b011 | 0b111 if s != 1 => {
+                    return None;
+                }
+                0b000 => Mnemonic::crc32b,
+                0b001 => Mnemonic::crc32h,
+                0b010 => Mnemonic::crc32w,
+                0b011 => Mnemonic::crc32x,
+                0b100 => Mnemonic::crc32cb,
+                0b101 => Mnemonic::crc32ch,
+                0b110 => Mnemonic::crc32cw,
+                0b111 => Mnemonic::crc32cx,
+                _ => unreachable!(),
+            };
+            let op2 = match s != 0 {
+                false => Operand::W,
+                true => Operand::X,
+            };
+
+            let Rd = Operand::W(D);
+            let Rn = Operand::W(N);
+            let Rm = op2(M);
+
+            Some(Instruction {
+                mnemonic,
+                operands: [Some(Rd), Some(Rn), Some(Rm), None],
+            })
+        }
         _ => unimplemented!(),
     }
 }
@@ -120,7 +147,7 @@ fn decode_data_1src(insn: u32) -> Option<Instruction> {
         // clz
         (_, 0b000100) => Mnemonic::clz,
         // cls
-        (_, 0b000101) => todo!(),
+        (_, 0b000101) => Mnemonic::cls,
 
         _ => todo!(),
     };
@@ -177,6 +204,11 @@ fn decode_logical_shreg(insn: u32) -> Option<Instruction> {
             mnemonic: Mnemonic::mvn,
             operands: [Some(Rd), Some(Rm), None, None],
         }),
+        // ands -> tst alias
+        (0b11, 0, _, _, _) if D == 0b11111 => Some(Instruction {
+            mnemonic: Mnemonic::tst,
+            operands: [Some(Rn), Some(Rm), shift, None],
+        }),
 
         _ => {
             let mnemonic = match (o, n) {
@@ -193,7 +225,7 @@ fn decode_logical_shreg(insn: u32) -> Option<Instruction> {
                 // orn
                 (0b01, 1) => Mnemonic::orn,
                 // eon
-                (0b10, 1) => todo!(),
+                (0b10, 1) => Mnemonic::eon,
                 // bics
                 (0b11, 1) => Mnemonic::bics,
                 _ => unreachable!(),
@@ -269,7 +301,7 @@ fn decode_addsub_reg(insn: u32) -> Option<Instruction> {
             };
 
             let op2 = match (s, b) {
-                (0, 0b111 | 0b011) => Operand::X(M as u8),
+                (_, 0b111 | 0b011) => Operand::X(M as u8),
                 _ => Operand::W(M as u8),
             };
 
@@ -297,16 +329,25 @@ fn decode_addsub_reg(insn: u32) -> Option<Instruction> {
 
     match (mnemonic, ext) {
         // adds -> cmn (extended/shifted)
-        (Mnemonic::adds, _) if D == 0b11111 => todo!(),
+        (Mnemonic::adds, _) if D == 0b11111 => Some(Instruction {
+            mnemonic: Mnemonic::cmn,
+            operands: [Some(Rn), Some(op2), op3, None],
+        }),
         // sub (shifted) -> neg (shifted)
-        (Mnemonic::sub, Ext::Shift(..)) if N == 0b11111 => todo!(),
+        (Mnemonic::sub, Ext::Shift(..)) if N == 0b11111 => Some(Instruction {
+            mnemonic: Mnemonic::neg,
+            operands: [Some(Rd), op3, op3, None],
+        }),
         // subs -> cmp (extended/shifted)
         (Mnemonic::subs, _) if D == 0b11111 => Some(Instruction {
             mnemonic: Mnemonic::cmp,
             operands: [Some(Rn), Some(op2), op3, None],
         }),
         // subs (shifted) -> negs
-        (Mnemonic::subs, Ext::Shift(..)) if N == 0b11111 => todo!(),
+        (Mnemonic::subs, Ext::Shift(..)) if N == 0b11111 => Some(Instruction {
+            mnemonic: Mnemonic::negs,
+            operands: [Some(Rd), Some(op2), op3, None],
+        }),
 
         _ => Some(Instruction {
             mnemonic,
@@ -336,13 +377,28 @@ fn decode_addsub_carry(insn: u32) -> Option<Instruction> {
         true => Operand::X,
     };
     let Rd = op(D as u8);
-    let Rn = op(N as u8);
     let Rm = op(M as u8);
 
-    Some(Instruction {
-        mnemonic,
-        operands: [Some(Rd), Some(Rn), Some(Rm), None],
-    })
+    match (mnemonic, N) {
+        // sbc -> ngc
+        (Mnemonic::sbc, 0b11111) => Some(Instruction {
+            mnemonic: Mnemonic::ngc,
+            operands: [Some(Rd), Some(Rm), None, None],
+        }),
+        // sbcs -> ngcs
+        (Mnemonic::sbcs, 0b11111) => Some(Instruction {
+            mnemonic: Mnemonic::ngcs,
+            operands: [Some(Rd), Some(Rm), None, None],
+        }),
+        _ => {
+            let Rn = op(N as u8);
+
+            Some(Instruction {
+                mnemonic,
+                operands: [Some(Rd), Some(Rn), Some(Rm), None],
+            })
+        }
+    }
 }
 
 #[bitmatch]
@@ -431,22 +487,44 @@ fn decode_cond_select(insn: u32) -> Option<Instruction> {
             let Rm = op(M as u8);
 
             match (mnemonic, N, M, c) {
+                // csinc -> cset
+                (Mnemonic::csinc, 31, 31, _) if c & 0b1110 != 0b1110 => {
+                    let cond = BranchCondition::try_from((c ^ 1) as u8).unwrap();
+                    Some(Instruction {
+                        mnemonic: Mnemonic::cset,
+                        operands: [Some(Rd), Some(Operand::Cond(cond)), None, None],
+                    })
+                }
                 // csinc -> cinc
-                (Mnemonic::csinc, _, _, _)
-                    if c & 0b1110 != 0b1110 && N != 31 && M != 31 && N == M =>
-                {
+                (Mnemonic::csinc, _, _, _) if c & 0b1110 != 0b1110 && N == M => {
                     let cond = BranchCondition::try_from((c ^ 1) as u8).unwrap();
                     Some(Instruction {
                         mnemonic: Mnemonic::cinc,
                         operands: [Some(Rd), Some(Rn), Some(Operand::Cond(cond)), None],
                     })
                 }
-                // csinc -> cset
-                (Mnemonic::csinc, _, _, _) if N == 31 && M == 31 && c & 0b1110 != 0b1110 => {
+                // csinv -> csetm
+                (Mnemonic::csinv, 31, 31, _) if c & 0b1110 != 0b1110 => {
                     let cond = BranchCondition::try_from((c ^ 1) as u8).unwrap();
                     Some(Instruction {
-                        mnemonic: Mnemonic::cset,
+                        mnemonic: Mnemonic::csetm,
                         operands: [Some(Rd), Some(Operand::Cond(cond)), None, None],
+                    })
+                }
+                // csinv -> cinv
+                (Mnemonic::csinv, _, _, _) if c & 0b1110 != 0b1110 && N == M => {
+                    let cond = BranchCondition::try_from((c ^ 1) as u8).unwrap();
+                    Some(Instruction {
+                        mnemonic: Mnemonic::cinv,
+                        operands: [Some(Rd), Some(Rn), Some(Operand::Cond(cond)), None],
+                    })
+                }
+                // csneg -> cneg
+                (Mnemonic::csneg, _, _, _) if c & 0b1110 != 0b1110 && N == M => {
+                    let cond = BranchCondition::try_from((c ^ 1) as u8).unwrap();
+                    Some(Instruction {
+                        mnemonic: Mnemonic::cneg,
+                        operands: [Some(Rd), Some(Rn), Some(Operand::Cond(cond)), None],
                     })
                 }
                 _ => {
@@ -522,7 +600,10 @@ fn decode_data_3src(insn: u32) -> Option<Instruction> {
                     operands: [Some(Rd), Some(Rn), Some(Rm), None],
                 }),
                 // smsubl -> smnegl
-                (0b11111, 1) => todo!(),
+                (0b11111, 1) => Some(Instruction {
+                    mnemonic: Mnemonic::smnegl,
+                    operands: [Some(Rd), Some(Rn), Some(Rm), None],
+                }),
                 _ => {
                     let mnemonic = match c != 0 {
                         false => Mnemonic::smaddl,
@@ -544,11 +625,14 @@ fn decode_data_3src(insn: u32) -> Option<Instruction> {
             match (A, c) {
                 // umaddl -> umull
                 (0b11111, 0) => Some(Instruction {
-                    mnemonic: Mnemonic::umul,
+                    mnemonic: Mnemonic::umull,
                     operands: [Some(Rd), Some(Rn), Some(Rm), None],
                 }),
                 // umsubl -> umnegl
-                (0b11111, 1) => todo!(),
+                (0b11111, 1) => Some(Instruction {
+                    mnemonic: Mnemonic::umnegl,
+                    operands: [Some(Rd), Some(Rn), Some(Rm), None],
+                }),
                 _ => {
                     let mnemonic = match c != 0 {
                         false => Mnemonic::umaddl,
