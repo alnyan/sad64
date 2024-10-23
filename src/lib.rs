@@ -130,6 +130,7 @@ impl Formatter for SimpleFormatter {
                 Operand::Daifset => print!("daifset"),
                 Operand::Daifclr => print!("daifclr"),
                 Operand::Spsel => print!("spsel"),
+                Operand::Prefetch(prfm) => print!("{}", prfm),
 
                 Operand::Cond(cond) => {
                     print!("{:?}", cond)

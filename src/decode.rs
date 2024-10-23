@@ -20,7 +20,7 @@ pub(super) fn decode_inner(insn: u32) -> Option<Instruction> {
     #[bitmatch]
     match op0 {
         // Unallocated
-        "00??" => todo!(),
+        "00??" => None,
         // Data processing - immediate
         "100x" => imm::decode_data_imm(x as _, insn),
         // Branches, exception generating and system instructions

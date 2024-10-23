@@ -30,6 +30,7 @@ pub enum Operand {
     Daifset,
     Daifclr,
     Spsel,
+    Prefetch(Prefetch),
 
     Cond(BranchCondition),
 }
@@ -165,6 +166,20 @@ pub enum Barrier {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub enum PrefetchWhat {
+    pld,
+    pli,
+    pst,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Prefetch {
+    pub what: PrefetchWhat,
+    pub level: u8,
+    pub keep: bool,
+}
+
+#[derive(Debug, Clone, Copy)]
 pub enum IndexMode {
     PreIndex(i64),
 
@@ -278,5 +293,33 @@ impl fmt::Display for SysOp {
             Self::Ic(ic) => fmt::Debug::fmt(ic, f),
             Self::Tlbi(tlbi) => fmt::Debug::fmt(tlbi, f),
         }
+    }
+}
+
+impl Prefetch {
+    pub fn decode(rt: u8) -> Option<Self> {
+        let keep = rt & 1 == 0;
+        let level = ((rt >> 1) & 0x3) + 1;
+        if level == 0b100 {
+            return None;
+        }
+        let what = match (rt >> 3) & 0x3 {
+            0b00 => PrefetchWhat::pld,
+            0b01 => PrefetchWhat::pli,
+            0b10 => PrefetchWhat::pst,
+            _ => return None,
+        };
+        Some(Self { what, keep, level })
+    }
+}
+
+impl fmt::Display for Prefetch {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!(
+            "{:?}l{}{}",
+            self.what,
+            self.level,
+            if self.keep { "keep" } else { "strm" }
+        ))
     }
 }
