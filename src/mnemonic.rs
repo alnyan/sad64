@@ -123,6 +123,7 @@ pub enum Mnemonic {
     ret,
     rev,
     rev16,
+    rev32,
     ror,
     sbc,
     sbcs,

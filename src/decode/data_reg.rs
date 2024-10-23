@@ -112,7 +112,7 @@ fn decode_data_2src(insn: u32) -> Option<Instruction> {
                 operands: [Some(Rd), Some(Rn), Some(Rm), None],
             })
         }
-        _ => unimplemented!(),
+        _ => None,
     }
 }
 
@@ -141,7 +141,7 @@ fn decode_data_1src(insn: u32) -> Option<Instruction> {
         // rev - 32-bit
         (0, 0b000010) => Mnemonic::rev,
         // rev32
-        (1, 0b000010) => todo!(),
+        (1, 0b000010) => Mnemonic::rev32,
         // rev - 64-bit
         (1, 0b000011) => Mnemonic::rev,
         // clz
@@ -149,7 +149,7 @@ fn decode_data_1src(insn: u32) -> Option<Instruction> {
         // cls
         (_, 0b000101) => Mnemonic::cls,
 
-        _ => todo!(),
+        _ => return None,
     };
 
     Some(Instruction {
@@ -176,7 +176,7 @@ fn decode_logical_shreg(insn: u32) -> Option<Instruction> {
     let Rd = op(D);
 
     if s == 0 && i & (1 << 5) != 0 {
-        todo!()
+        return None;
     }
 
     let shift = match S {
@@ -264,7 +264,7 @@ fn decode_addsub_reg(insn: u32) -> Option<Instruction> {
                 0b00 => Operand::Lsl,
                 0b01 => Operand::Lsr,
                 0b10 => Operand::Asr,
-                _ => unimplemented!(),
+                _ => return None,
             };
 
             let op = match s != 0 {
@@ -281,12 +281,12 @@ fn decode_addsub_reg(insn: u32) -> Option<Instruction> {
 
             if a != 0 {
                 // Unallocated
-                todo!();
+                return None;
             }
 
             if i & 0b101 == 0b101 || i & 0b110 == 0b110 {
                 // Unallocated
-                todo!();
+                return None;
             }
 
             let extend = if (b == 0b010 || b == 0b011) && (N == 0b11111 || D == 0b11111) {
@@ -476,7 +476,7 @@ fn decode_cond_select(insn: u32) -> Option<Instruction> {
                 0b001 => Mnemonic::csinc,
                 0b100 => Mnemonic::csinv,
                 0b101 => Mnemonic::csneg,
-                _ => unimplemented!(),
+                _ => return None,
             };
             let op = match s != 0 {
                 false => Operand::W,
@@ -537,7 +537,7 @@ fn decode_cond_select(insn: u32) -> Option<Instruction> {
                 }
             }
         }
-        _ => unimplemented!(),
+        _ => None,
     }
 }
 
@@ -665,6 +665,6 @@ fn decode_data_3src(insn: u32) -> Option<Instruction> {
                 operands: [Some(Rd), Some(Rn), Some(Rm), None],
             })
         }
-        _ => unimplemented!(),
+        _ => None,
     }
 }
