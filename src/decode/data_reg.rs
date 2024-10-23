@@ -31,7 +31,7 @@ pub fn decode_data_reg(insn: u32) -> Option<Instruction> {
         "? 1 0100 ?" => decode_cond_select(insn),
         // Data-processing (3 source)
         "? 1 1??? ?" => decode_data_3src(insn),
-        _ => unimplemented!(),
+        _ => None,
     }
 }
 
@@ -314,46 +314,6 @@ fn decode_addsub_reg(insn: u32) -> Option<Instruction> {
         }),
     }
 }
-// #[bitmatch]
-// fn decode_addsub_shreg(insn: u32) -> Option<Instruction> {
-//     let M = M as u8;
-//     let N = N as u8;
-//     let D = D as u8;
-//     let i = i as u8;
-//
-//
-//     let Rm = op(M);
-//     let Rn = op(N);
-//     let Rd = op(D);
-//
-//     Some(Instruction {
-//         mnemonic,
-//         operands: [Some(Rd), Some(Rn), Some(Rm), shift],
-//     })
-// }
-
-// #[bitmatch]
-// fn decode_addsub_exreg(insn: u32) -> Option<Instruction> {
-//     let sf = s;
-//     let op = o;
-//     let opt = a;
-//     let option = b;
-//
-//
-//     let Rd = op01(D as u8);
-//     let Rn = op01(N as u8);
-//     let Rm = op2(M as u8);
-//
-//     Some(Instruction {
-//         mnemonic,
-//         operands: [
-//             Some(Rd),
-//             Some(Rn),
-//             Some(Rm),
-//             Some(Operand::RegExtend(extend)),
-//         ],
-//     })
-// }
 
 #[bitmatch]
 fn decode_addsub_carry(insn: u32) -> Option<Instruction> {

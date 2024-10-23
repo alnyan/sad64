@@ -38,6 +38,10 @@ pub(super) fn decode_inner(insn: u32) -> Option<Instruction> {
 }
 
 fn sext(value: u64, sign: usize) -> i64 {
+    if sign == 64 {
+        return value as i64;
+    }
+
     if value & (1 << sign) != 0 {
         let sext = u64::MAX << sign;
         (value | sext) as i64

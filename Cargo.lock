@@ -64,11 +64,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "rangemap"
+version = "1.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f60fcc7d6849342eff22c4350c8b9a989ee8ceabc4b481253e8946b9fe83d684"
+
+[[package]]
 name = "sad64"
 version = "0.1.0"
 dependencies = [
  "bitmatch",
  "elf",
+ "rangemap",
 ]
 
 [[package]]

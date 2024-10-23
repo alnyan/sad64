@@ -1,43 +1,50 @@
 #![feature(os_str_display)]
-use std::{fs, path::Path};
+
+use std::{borrow::Cow, env::args};
 
 use elf::{
-    abi::{PF_X, PT_LOAD},
+    abi::{SHF_EXECINSTR, SHN_UNDEF, SHT_PROGBITS},
     endian::AnyEndian,
-    segment::ProgramHeader,
     ElfBytes,
 };
-use sad64::{decode, Formatter, SimpleFormatter};
+use rangemap::RangeMap;
+use sad64::{decode, Formatter, SimpleFormatter, SymbolResolver};
 
-const SKIP: &[u64] = &[
-    0x400800a0,
-    0x400800a4,
-    0xFFFFFF80400c58a8,
-    0xFFFFFF80400c58ac,
-    0xFFFFFF80400c5a50,
-    0xFFFFFF80400c5a54,
-];
+pub struct Resolver<'a> {
+    symbol_table: &'a RangeMap<u64, String>,
+}
 
-fn dump(name: &str, elf: &mut ElfBytes<AnyEndian>, phdr: &ProgramHeader) -> Result<(), String> {
+impl<'a> SymbolResolver for Resolver<'a> {
+    fn resolve(&self, address: u64) -> Option<(std::borrow::Cow<str>, u64)> {
+        let (range, name) = self.symbol_table.get_key_value(&address)?;
+        assert!(address >= range.start);
+        Some((Cow::Borrowed(name.as_str()), address - range.start))
+    }
+}
+
+fn dump(name: &str, resolver: &Resolver, vaddr: u64, data: &[u8]) -> Result<(), String> {
     let mut f = SimpleFormatter;
-    let data = elf.segment_data(phdr).unwrap();
     let len = data.len() / size_of::<u32>();
 
-    println!("Decode file: {:?}", name);
+    println!("Section {}:", name);
 
     for i in 0..len {
-        let addr = phdr.p_vaddr + i as u64 * 4;
+        let addr = vaddr + i as u64 * 4;
+        if let Some((location, offset)) = resolver.resolve(addr) {
+            if offset == 0 {
+                println!("{:#08x} <{}>:", addr, location);
+            }
+        }
+
         let mut bytes = [0; 4];
         bytes.copy_from_slice(&data[i * 4..i * 4 + 4]);
         let word = u32::from_ne_bytes(bytes);
-        print!("{:08x}: ", addr);
-        if SKIP.contains(&addr) {
-            println!(".word {:#010x}", word);
-        } else {
-            let insn = decode(word)
-                .ok_or_else(|| format!("Error decoding instruction in file: {:?}", name))?;
+        print!("\t{:08x}: ", addr);
 
-            f.write_insn(&insn);
+        if let Some(insn) = decode(word) {
+            f.write_insn(addr, resolver, &insn);
+        } else {
+            println!(".word {:#010x}", word);
         }
     }
 
@@ -45,30 +52,41 @@ fn dump(name: &str, elf: &mut ElfBytes<AnyEndian>, phdr: &ProgramHeader) -> Resu
 }
 
 fn main() {
-    for entry in fs::read_dir("bins").unwrap() {
-        let entry = entry.unwrap();
-        if entry.file_type().unwrap().is_file() {
-            let name = entry.file_name().to_str().unwrap().to_owned();
-
-            let file = std::fs::read(entry.path()).unwrap();
-            let mut elf = ElfBytes::<AnyEndian>::minimal_parse(&file).unwrap();
-
-            for phdr in elf.segments().unwrap() {
-                if phdr.p_type == PT_LOAD && phdr.p_flags & PF_X == PF_X {
-                    dump(&name, &mut elf, &phdr).unwrap();
-                }
-            }
-        }
+    let args = args().collect::<Vec<_>>();
+    if args.len() != 2 {
+        todo!();
     }
 
-    // let code = &[
-    //     0x9100347f, 0x910037e3, 0x9100007f, 0x910003e3, 0x700003c1, 0x30fffc21, 0x92400c20,
-    //     0xb27f0841, 0xd2400462, 0xf27e0483, 0x92824681, 0xf2824681, 0xd2824681, 0x92a24681,
-    //     0xf2a24681, 0xd2a24681, 0x92a00001, 0xf2a00001, 0xd2a00001,
-    // ];
-    // let mut f = SimpleFormatter;
-    // for &word in code {
-    //     let insn = decode(word).unwrap();
-    //     f.write_insn(&insn);
-    // }
+    let file = std::fs::read(&args[1]).unwrap();
+    let elf = ElfBytes::<AnyEndian>::minimal_parse(&file).unwrap();
+    let (shdrs, strtab) = elf.section_headers_with_strtab().unwrap();
+    let (symtab, symstrtab) = elf.symbol_table().unwrap().unwrap();
+    let shdrs = shdrs.unwrap();
+    let strtab = strtab.unwrap();
+    let mut symbol_table = RangeMap::new();
+
+    println!("Disassembling file: {:?}", args[1]);
+
+    for symbol in symtab {
+        if symbol.st_shndx == SHN_UNDEF || symbol.st_size == 0 {
+            continue;
+        }
+        let name = symstrtab.get(symbol.st_name as _).unwrap();
+        let start = symbol.st_value;
+        let end = symbol.st_value + symbol.st_size;
+        println!("{}: {:#x?}", name, start..end);
+        symbol_table.insert(start..end, name.to_owned());
+    }
+
+    let resolver = Resolver {
+        symbol_table: &symbol_table,
+    };
+
+    for section in shdrs {
+        if section.sh_type == SHT_PROGBITS && section.sh_flags & (SHF_EXECINSTR as u64) != 0 {
+            let name = strtab.get(section.sh_name as _).unwrap();
+            let (data, _) = elf.section_data(&section).unwrap();
+            dump(name, &resolver, section.sh_addr, data).unwrap();
+        }
+    }
 }

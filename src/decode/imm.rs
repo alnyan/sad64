@@ -33,14 +33,14 @@ fn decode_pcrel_addr(insn: u32) -> Option<Instruction> {
     let "o ii ????? IIIIIIIIIIIIIIIIIII DDDDD" = insn;
     let imm = ((I << 2) | i) as u64;
     let (mnemonic, imm) = match o != 0 {
-        false => (Mnemonic::adr, sext(imm, 20)),
-        true => (Mnemonic::adrp, sext(imm << 12, 32)),
+        false => (Mnemonic::adr, Operand::PcRelImm(sext(imm, 20))),
+        true => (Mnemonic::adrp, Operand::Adrp(sext(imm << 12, 32))),
     };
     let Rd = Operand::X(D as u8);
 
     Some(Instruction {
         mnemonic,
-        operands: [Some(Rd), Some(Operand::PcRelImm(imm)), None, None],
+        operands: [Some(Rd), Some(imm), None, None],
     })
 }
 
@@ -62,13 +62,19 @@ fn decode_add_sub_imm(insn: u32) -> Option<Instruction> {
         (1, 1) => Mnemonic::subs,
         _ => unreachable!(),
     };
-    let op = match s != 0 {
+    let op0 = match (S != 0, s != 0) {
+        (false, false) => Operand::WSp,
+        (false, true) => Operand::XSp,
+        (true, false) => Operand::W,
+        (true, true) => Operand::X,
+    };
+    let op1 = match s != 0 {
         false => Operand::WSp,
         true => Operand::XSp,
     };
 
-    let Rn = op(N as u8);
-    let Rd = op(D as u8);
+    let Rd = op0(D as u8);
+    let Rn = op1(N as u8);
     let imm = i as u64;
 
     match (mnemonic, q, i) {
@@ -80,7 +86,7 @@ fn decode_add_sub_imm(insn: u32) -> Option<Instruction> {
         // adds -> cmn (immediate)
         (Mnemonic::adds, _, _) if D == 0b11111 => Some(Instruction {
             mnemonic: Mnemonic::cmn,
-            operands: [Some(Rd), Some(Operand::Imm(imm)), shift, None],
+            operands: [Some(Rn), Some(Operand::Imm(imm)), shift, None],
         }),
         // subs -> cmp (immediate)
         (Mnemonic::subs, _, _) if D == 0b11111 => Some(Instruction {
@@ -118,26 +124,29 @@ fn decode_wmov_imm(insn: u32) -> Option<Instruction> {
 
     match (s, mnemonic) {
         // movn -> mov (inverted wide imm)
-        (0, Mnemonic::movn) if !(i == 0 && w != 0) => {
+        (0, Mnemonic::movn) if !(i == 0 && w != 0) && (i as u16 != u16::MAX) => {
             let val = !((i as u64) << (w * 16));
+            let val = sext(val, (w as usize + 1) * 16);
             Some(Instruction {
                 mnemonic: Mnemonic::mov,
-                operands: [Some(Rd), Some(Operand::Imm(val)), None, None],
+                operands: [Some(Rd), Some(Operand::Simm(val)), None, None],
             })
         }
-        (1, Mnemonic::movn) if !(i == 0 && w != 0) && (i as u16 != u16::MAX) => {
+        (1, Mnemonic::movn) if !(i == 0 && w != 0) => {
             let val = !((i as u64) << (w * 16));
+            let val = sext(val, (w as usize + 1) * 16);
             Some(Instruction {
                 mnemonic: Mnemonic::mov,
-                operands: [Some(Rd), Some(Operand::Imm(val)), None, None],
+                operands: [Some(Rd), Some(Operand::Simm(val)), None, None],
             })
         }
         // movz -> mov (wide imm)
         (_, Mnemonic::movz) if !(i == 0 && w != 0) => {
             let val = (i as u64) << (w * 16);
+            let val = sext(val, (w as usize + 1) * 16);
             Some(Instruction {
                 mnemonic: Mnemonic::mov,
-                operands: [Some(Rd), Some(Operand::Imm(val)), None, None],
+                operands: [Some(Rd), Some(Operand::Simm(val)), None, None],
             })
         }
         _ => Some(Instruction {
@@ -175,7 +184,12 @@ fn decode_logical_imm(insn: u32) -> Option<Instruction> {
     let mask = decode_logical_imm_bitmask(n != 0, S as _, R as _, if s != 0 { 8 } else { 4 })?;
 
     match mnemonic {
-        // Mnemonic::Orr if wmov_preferred(s, n, imms, immr)
+        Mnemonic::orr if N == 0b11111 && !wmov_preferred(s != 0, n != 0, S, R) => {
+            Some(Instruction {
+                mnemonic: Mnemonic::mov,
+                operands: [Some(Rd), Some(Operand::Imm(mask)), None, None],
+            })
+        }
 
         // ands -> tst
         Mnemonic::ands if D == 0b11111 => Some(Instruction {
@@ -252,8 +266,6 @@ fn decode_bit_field(insn: u32) -> Option<Instruction> {
             mnemonic: Mnemonic::asr,
             operands: [Some(Rd), Some(Rn), Some(Operand::Imm(R as _)), None],
         }),
-        // sbfiz
-        (Mnemonic::sbfm, _, _, _) if S < R => todo!(),
         // sxtb
         (Mnemonic::sbfm, _, 0b000000, 0b000111) => Some(Instruction {
             mnemonic: Mnemonic::sxtb,
@@ -274,6 +286,36 @@ fn decode_bit_field(insn: u32) -> Option<Instruction> {
                 None,
             ],
         }),
+        // sbfx
+        (Mnemonic::sbfm, _, _, _) if bfx_preferred(s != 0, o >> 1 != 0, S as _, R as _) => {
+            let lsb = R;
+            let width = S - R + 1;
+
+            Some(Instruction {
+                mnemonic: Mnemonic::sbfx,
+                operands: [
+                    Some(Rd),
+                    Some(Rn),
+                    Some(Operand::Imm(lsb as _)),
+                    Some(Operand::Imm(width as _)),
+                ],
+            })
+        }
+        // sbfiz
+        (Mnemonic::sbfm, _, _, _) if S < R => {
+            let lsb = (!R + 1) % scale;
+            let width = S + 1;
+
+            Some(Instruction {
+                mnemonic: Mnemonic::sbfiz,
+                operands: [
+                    Some(Rd),
+                    Some(Rn),
+                    Some(Operand::Imm(lsb as _)),
+                    Some(Operand::Imm(width as _)),
+                ],
+            })
+        }
 
         // UBFM aliases
         // lsl (imm)
@@ -320,9 +362,15 @@ fn decode_bit_field(insn: u32) -> Option<Instruction> {
             })
         }
         // uxtb
-        (Mnemonic::ubfm, _, 0b000000, 0b000111) => todo!(),
+        (Mnemonic::ubfm, _, 0b000000, 0b000111) => Some(Instruction {
+            mnemonic: Mnemonic::uxtb,
+            operands: [Some(Rd), Some(Operand::W(N as u8)), None, None],
+        }),
         // uxth
-        (Mnemonic::ubfm, _, 0b000000, 0b001111) => todo!(),
+        (Mnemonic::ubfm, _, 0b000000, 0b001111) => Some(Instruction {
+            mnemonic: Mnemonic::uxth,
+            operands: [Some(Rd), Some(Operand::W(N as u8)), None, None],
+        }),
 
         _ => Some(Instruction {
             mnemonic,
@@ -433,6 +481,30 @@ fn decode_logical_imm_bitmask(n: bool, mut imms: u32, mut immr: u32, reg_size: u
     let limm = !0 << (reg_size * 4) << (reg_size * 4);
     let limm = imm & !limm;
     Some(limm)
+}
+
+fn wmov_preferred(sf: bool, n: bool, imms: u32, immr: u32) -> bool {
+    let width = match sf {
+        false => 32,
+        true => 64,
+    };
+
+    if sf && !n {
+        return false;
+    }
+    if !sf && (n || imms >> 5 != 0) {
+        return false;
+    }
+
+    if imms < 16 {
+        return (-(immr as i32) % 16) <= (15 - (imms as i32));
+    }
+
+    if imms >= width - 15 {
+        return (immr % 16) <= (imms - (width - 15));
+    }
+
+    false
 }
 
 fn bfx_preferred(sf: bool, uns: bool, imms: u8, immr: u8) -> bool {
