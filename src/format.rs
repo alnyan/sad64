@@ -88,6 +88,12 @@ impl Formatter for SimpleFormatter {
                 Operand::W(31) => print!("wzr"),
                 Operand::W(x) => print!("w{}", x),
 
+                // SIMD register
+                Operand::VMulti(v) => print!("{}", v),
+                Operand::VSingle(v) => print!("{}", v),
+                Operand::VMultiGroup(grp) => print!("{}", grp),
+                Operand::VSingleGroup(grp) => print!("{}", grp),
+
                 // Memory
                 Operand::MemXSpOff(x, off) => {
                     print!("[");

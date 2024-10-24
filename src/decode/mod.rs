@@ -6,6 +6,7 @@ mod branch;
 mod data_reg;
 mod imm;
 mod ldst;
+mod simd;
 
 #[bitmatch]
 pub(super) fn decode_inner(insn: u32) -> Option<Instruction> {
@@ -30,9 +31,7 @@ pub(super) fn decode_inner(insn: u32) -> Option<Instruction> {
         // Data processing - register
         "?101" => data_reg::decode_data_reg(insn),
         // Data processing - SIMD and floating point
-        "0111" => todo!(),
-        // Data processing - SIMD and floating point
-        "1111" => todo!(),
+        "?111" => simd::decode_simd(insn),
         _ => None,
     }
 }

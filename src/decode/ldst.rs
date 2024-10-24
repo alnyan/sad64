@@ -1,7 +1,9 @@
 use bitmatch::bitmatch;
 
 use crate::{
-    decode::sext, operand::Prefetch, IndexMode, Instruction, Mnemonic, Operand, RegExtend,
+    decode::sext,
+    operand::{Prefetch, VectorMulti, VectorMultiGroup, VectorSingle, VectorSingleGroup},
+    IndexMode, Instruction, Mnemonic, Operand, RegExtend,
 };
 
 #[bitmatch]
@@ -20,6 +22,10 @@ pub fn decode_load_store(insn: u32) -> Option<Instruction> {
 fn decode_load_store_inner(op: u32, insn: u32) -> Option<Instruction> {
     #[bitmatch]
     match op {
+        // Load/store SIMD multiple structures
+        "0 00 1 0? ?????? ??" => decode_ldst_simd_multi(insn),
+        // Load/store SIMD single structure
+        "0 00 1 1? ?????? ??" => decode_ldst_simd_single(insn),
         // Load/store exclusive
         "? 00 0 0? ?????? ??" => decode_ldst_exc(insn),
         // Load register (literal)
@@ -63,6 +69,210 @@ fn post_index_simm(xsp: u8, imm: u32, scale: u32, sign: u32) -> (Option<Operand>
         Some(Operand::MemXSpOff(xsp, IndexMode::Unsigned(0))),
         Some(Operand::Simm(offset)),
     )
+}
+
+#[bitmatch]
+fn decode_ldst_simd_multi(insn: u32) -> Option<Instruction> {
+    #[bitmatch]
+    let "? Q ??????q L ? MMMMM oooo ss NNNNN TTTTT" = insn;
+    // q == 0 -> multi struct
+    // q == 1 -> multi struct post indexed
+
+    let T = T as u8;
+
+    let (mnemonic, len) = match (L, o) {
+        // ld4/st4 multiple
+        (0, 0b0000) => (Mnemonic::st4, 4),
+        (1, 0b0000) => (Mnemonic::ld4, 4),
+        // ld1/st1 four regs
+        (0, 0b0010) => (Mnemonic::st1, 4),
+        (1, 0b0010) => (Mnemonic::ld1, 4),
+        // ld3/st3
+        (0, 0b0100) => (Mnemonic::st3, 3),
+        (1, 0b0100) => (Mnemonic::ld3, 3),
+        // ld1/st1 three regs
+        (0, 0b0110) => (Mnemonic::st1, 3),
+        (1, 0b0110) => (Mnemonic::ld1, 3),
+        // ld1/st1 one reg
+        (0, 0b0111) => (Mnemonic::st1, 1),
+        (1, 0b0111) => (Mnemonic::ld1, 1),
+        // ld2/st2
+        (0, 0b1000) => (Mnemonic::st2, 2),
+        (1, 0b1000) => (Mnemonic::ld2, 2),
+        // ld1/st1 two regs
+        (0, 0b1010) => (Mnemonic::st1, 2),
+        (1, 0b1010) => (Mnemonic::ld1, 2),
+        _ => return None,
+    };
+
+    let (op1, op2) = match (q, M) {
+        (1, 0b11111) => (
+            Some(Operand::MemXSpOff(N as u8, IndexMode::Unsigned(0))),
+            Some(Operand::Imm((Q as u64 + 1) * (8 * len as u64))),
+        ),
+        (1, _) => (
+            Some(Operand::MemXSpOff(N as u8, IndexMode::Unsigned(0))),
+            Some(Operand::X(M as u8)),
+        ),
+        (0, _) => (
+            Some(Operand::MemXSpOff(N as u8, IndexMode::Unsigned(0))),
+            None,
+        ),
+        _ => unreachable!(),
+    };
+
+    let base = match (mnemonic, s, Q) {
+        (_, 0b00, 0) => VectorMulti::v8b(T, None),
+        (_, 0b00, 1) => VectorMulti::v16b(T, None),
+        (_, 0b01, 0) => VectorMulti::v4h(T, None),
+        (_, 0b01, 1) => VectorMulti::v8h(T, None),
+        (_, 0b10, 0) => VectorMulti::v2s(T, None),
+        (_, 0b10, 1) => VectorMulti::v4s(T, None),
+        // .1d is only for st1/ld1
+        (Mnemonic::ld1 | Mnemonic::st1, 0b11, 0) => VectorMulti::v1d(T, None),
+        (_, 0b11, 1) => VectorMulti::v2d(T, None),
+        _ => return None,
+    };
+
+    let group = VectorMultiGroup { base, size: len };
+
+    Some(Instruction {
+        mnemonic,
+        operands: [Some(Operand::VMultiGroup(group)), op1, op2, None],
+    })
+}
+
+#[bitmatch]
+fn decode_ldst_simd_single(insn: u32) -> Option<Instruction> {
+    #[bitmatch]
+    let "? Q ??????q L R MMMMM ooo S ss NNNNN TTTTT" = insn;
+    let T = T as u8;
+
+    let (bits, len) = match (L, R, o, S, s) {
+        // No replicate
+        (_, 0, 0b000, _, _) => (8, 1),
+        (_, 0, 0b001, _, _) => (8, 3),
+        (_, 0, 0b010, _, 0b10 | 0b00) => (16, 1),
+        (_, 0, 0b011, _, 0b10 | 0b00) => (16, 3),
+        (_, 0, 0b100, _, 0b00) => (32, 1),
+        (_, 0, 0b100, 0, 0b01) => (64, 1),
+        (_, 0, 0b101, _, 0b00) => (32, 3),
+        (_, 0, 0b101, 0, 0b01) => (64, 3),
+        (_, 1, 0b000, _, _) => (8, 2),
+        (_, 1, 0b001, _, _) => (8, 4),
+        (_, 1, 0b010, _, 0b10 | 0b00) => (16, 2),
+        (_, 1, 0b011, _, 0b10 | 0b00) => (16, 4),
+        (_, 1, 0b100, _, 0b00) => (32, 2),
+        (_, 1, 0b100, 0, 0b01) => (64, 2),
+        (_, 1, 0b101, _, 0b00) => (32, 4),
+        (_, 1, 0b101, 0, 0b01) => (64, 4),
+        // Replicate
+        (1, 0, 0b110, 0, _) => (0, 1),
+        (1, 0, 0b111, 0, _) => (0, 3),
+        (1, 1, 0b110, 0, _) => (0, 2),
+        (1, 1, 0b111, 0, _) => (0, 4),
+        _ => return None,
+    };
+
+    match bits != 0 {
+        // No replicate
+        true => {
+            let imm = (len as u64) * (bits / 8);
+
+            let (op1, op2) = match (q, M) {
+                (1, 0b11111) => (
+                    Some(Operand::MemXSpOff(N as u8, IndexMode::Unsigned(0))),
+                    Some(Operand::Imm(imm)),
+                ),
+                (1, _) => (
+                    Some(Operand::MemXSpOff(N as u8, IndexMode::Unsigned(0))),
+                    Some(Operand::X(M as u8)),
+                ),
+                (0, _) => (
+                    Some(Operand::MemXSpOff(N as u8, IndexMode::Unsigned(0))),
+                    None,
+                ),
+                _ => unreachable!(),
+            };
+
+            let mnemonic = match (L, len) {
+                (0, 1) => Mnemonic::st1,
+                (1, 1) => Mnemonic::ld1,
+                (0, 2) => Mnemonic::st2,
+                (1, 2) => Mnemonic::ld2,
+                (0, 3) => Mnemonic::st3,
+                (1, 3) => Mnemonic::ld3,
+                (0, 4) => Mnemonic::st4,
+                (1, 4) => Mnemonic::ld4,
+                _ => unreachable!(),
+            };
+
+            let (base, index) = match bits {
+                8 => (VectorSingle::b(T), s | (S << 2) | (Q << 3)),
+                16 => (VectorSingle::h(T), (s >> 1) | (S << 1) | (Q << 2)),
+                32 => (VectorSingle::s(T), S | (Q << 1)),
+                64 => (VectorSingle::d(T), Q),
+                _ => unreachable!(),
+            };
+
+            let group = VectorSingleGroup {
+                base,
+                size: len,
+                index: index as u8,
+            };
+
+            Some(Instruction {
+                mnemonic,
+                operands: [Some(Operand::VSingleGroup(group)), op1, op2, None],
+            })
+        }
+        // Replicate
+        false => {
+            let base = match (s, Q) {
+                (0b00, 0) => VectorMulti::v8b(T, None),
+                (0b00, 1) => VectorMulti::v16b(T, None),
+                (0b01, 0) => VectorMulti::v4h(T, None),
+                (0b01, 1) => VectorMulti::v8h(T, None),
+                (0b10, 0) => VectorMulti::v2s(T, None),
+                (0b10, 1) => VectorMulti::v4s(T, None),
+                (0b11, 0) => VectorMulti::v1d(T, None),
+                (0b11, 1) => VectorMulti::v2d(T, None),
+                _ => unreachable!(),
+            };
+            let imm = (len as u64) * (1 << s);
+
+            let (op1, op2) = match (q, M) {
+                (1, 0b11111) => (
+                    Some(Operand::MemXSpOff(N as u8, IndexMode::Unsigned(0))),
+                    Some(Operand::Imm(imm)),
+                ),
+                (1, _) => (
+                    Some(Operand::MemXSpOff(N as u8, IndexMode::Unsigned(0))),
+                    Some(Operand::X(M as u8)),
+                ),
+                (0, _) => (
+                    Some(Operand::MemXSpOff(N as u8, IndexMode::Unsigned(0))),
+                    None,
+                ),
+                _ => unreachable!(),
+            };
+
+            let mnemonic = match len {
+                1 => Mnemonic::ld1r,
+                2 => Mnemonic::ld2r,
+                3 => Mnemonic::ld3r,
+                4 => Mnemonic::ld4r,
+                _ => unreachable!(),
+            };
+
+            let group = VectorMultiGroup { base, size: len };
+
+            Some(Instruction {
+                mnemonic,
+                operands: [Some(Operand::VMultiGroup(group)), op1, op2, None],
+            })
+        }
+    }
 }
 
 #[bitmatch]
