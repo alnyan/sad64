@@ -526,123 +526,6 @@ fn decode_ldst_reg(insn: u32) -> Option<Instruction> {
             })
         }
 
-        // strb/ldrb
-        (_, 0b00, 0, 0, _) => {
-            let mnemonic = match (pri, scale, L != 0) {
-                (0, _, false) => Mnemonic::sttrb,
-                (0, _, true) => Mnemonic::ldtrb,
-                (1, 0, false) => Mnemonic::sturb,
-                (1, 0, true) => Mnemonic::ldurb,
-                (1, 1, false) => Mnemonic::strb,
-                (1, 1, true) => Mnemonic::ldrb,
-                _ => unreachable!(),
-            };
-            let (mem1, mem2) = mode(N as u8, i, 0, 8);
-            let Rt = Operand::W(T as u8);
-
-            Some(Instruction {
-                mnemonic,
-                operands: [Some(Rt), mem1, mem2, None],
-            })
-        }
-        // ldrsb
-        (_, 0b00, 0, 1, _) => {
-            let op = match L != 0 {
-                false => Operand::X,
-                true => Operand::W,
-            };
-            let mnemonic = match (pri, scale) {
-                (0, _) => Mnemonic::ldtrsb,
-                (1, 0) => Mnemonic::ldursb,
-                (1, 1) => Mnemonic::ldrsb,
-                _ => unreachable!(),
-            };
-            let (mem1, mem2) = mode(N as u8, i, 0, 8);
-            let Rt = op(T as u8);
-
-            Some(Instruction {
-                mnemonic,
-                operands: [Some(Rt), mem1, mem2, None],
-            })
-        }
-        // strh/ldrh
-        (_, 0b01, 0, 0, _) => {
-            let mnemonic = match (pri, scale, L != 0) {
-                (0, _, false) => Mnemonic::sttrh,
-                (0, _, true) => Mnemonic::ldtrh,
-                (1, 0, false) => Mnemonic::sturh,
-                (1, 0, true) => Mnemonic::ldurh,
-                (1, 1, false) => Mnemonic::strh,
-                (1, 1, true) => Mnemonic::ldrh,
-                _ => unreachable!(),
-            };
-            let (mem1, mem2) = mode(N as u8, i, 0, 8);
-            let Rt = Operand::W(T as u8);
-
-            Some(Instruction {
-                mnemonic,
-                operands: [Some(Rt), mem1, mem2, None],
-            })
-        }
-        // ldrsh
-        (_, 0b01, 0, 1, _) => {
-            let op = match L != 0 {
-                false => Operand::X,
-                true => Operand::W,
-            };
-            let mnemonic = match (pri, scale) {
-                (0, _) => Mnemonic::ldtrsh,
-                (1, 0) => Mnemonic::ldursh,
-                (1, 1) => Mnemonic::ldrsh,
-                _ => unreachable!(),
-            };
-            let (mem1, mem2) = mode(N as u8, i, 0, 8);
-            let Rt = op(T as u8);
-
-            Some(Instruction {
-                mnemonic,
-                operands: [Some(Rt), mem1, mem2, None],
-            })
-        }
-        // str/ldr
-        (_, 0b10 | 0b11, 0, 0, _) => {
-            let mnemonic = match (pri, scale, L != 0) {
-                (0, _, false) => Mnemonic::sttr,
-                (0, _, true) => Mnemonic::ldtr,
-                (1, 0, false) => Mnemonic::stur,
-                (1, 0, true) => Mnemonic::ldur,
-                (1, 1, false) => Mnemonic::str,
-                (1, 1, true) => Mnemonic::ldr,
-                _ => unreachable!(),
-            };
-            let op = match s & 1 != 0 {
-                false => Operand::W,
-                true => Operand::X,
-            };
-            let (mem1, mem2) = mode(N as u8, i, 0, 8);
-            let Rt = op(T as u8);
-
-            Some(Instruction {
-                mnemonic,
-                operands: [Some(Rt), mem1, mem2, None],
-            })
-        }
-        // ldrsw
-        (_, 0b10, 0, 1, 0) => {
-            let mnemonic = match (pri, scale) {
-                (0, _) => Mnemonic::ldtrsw,
-                (1, 0) => Mnemonic::ldursw,
-                (1, 1) => Mnemonic::ldrsw,
-                _ => unreachable!(),
-            };
-            let (mem1, mem2) = mode(N as u8, i, 0, 8);
-            let Rt = Operand::X(T as u8);
-
-            Some(Instruction {
-                mnemonic,
-                operands: [Some(Rt), mem1, mem2, None],
-            })
-        }
         // pfrm
         (1, 0b11, 0, 1, 0) => {
             let mnemonic = match scale != 0 {
@@ -660,6 +543,18 @@ fn decode_ldst_reg(insn: u32) -> Option<Instruction> {
             })
         }
 
+        (_, _, 0, _, _) => {
+            let (mnemonic, force_x) = load_store_mnemonic(pri, scale, s, o, L)?;
+            let op = load_store_operand(force_x, s)?;
+
+            let (mem1, mem2) = mode(N as u8, i, 0, 8);
+            let Rt = op(T as u8);
+
+            Some(Instruction {
+                mnemonic,
+                operands: [Some(Rt), mem1, mem2, None],
+            })
+        }
         _ => None,
     }
 }
@@ -684,19 +579,9 @@ fn decode_ldst_reg_reg(insn: u32) -> Option<Instruction> {
                 false => Mnemonic::str,
                 true => Mnemonic::ldr,
             };
-            let extend = match O {
-                0b010 => RegExtend::uxtw,
-                0b011 if scale >= 1 => RegExtend::lsl,
-                0b110 => RegExtend::sxtw,
-                0b111 => RegExtend::sxtx,
-                _ => return None,
-            };
-            let index = match O & 1 != 0 {
-                false => IndexMode::WExt,
-                true => IndexMode::XExt,
-            };
             let Rt = Operand::VMulti(op(T as u8));
-            let index = index(M as u8, extend(scale * S as u8));
+            let amount = (S != 0).then_some(scale * S as u8);
+            let index = RegExtend::decode_index(M as _, O as _, amount)?;
 
             Some(Instruction {
                 mnemonic,
@@ -709,212 +594,11 @@ fn decode_ldst_reg_reg(insn: u32) -> Option<Instruction> {
             })
         }
 
-        // TODO merge these encodings?
-        // strb/ldrb
-        (0b00, 0, 0, _) => {
-            let mnemonic = match L != 0 {
-                false => Mnemonic::strb,
-                true => Mnemonic::ldrb,
-            };
-            let extend = match O {
-                0b011 => RegExtend::lsl,
-                0b010 => RegExtend::uxtw,
-                0b110 => RegExtend::sxtw,
-                0b111 => RegExtend::sxtx,
-                _ => return None,
-            };
-            let index = match O & 1 != 0 {
-                false => IndexMode::WExt,
-                true => IndexMode::XExt,
-            };
-            let Rt = Operand::W(T as u8);
-            let index = index(M as u8, extend(0));
-
-            Some(Instruction {
-                mnemonic,
-                operands: [
-                    Some(Rt),
-                    Some(Operand::MemXSpOff(N as u8, index)),
-                    None,
-                    None,
-                ],
-            })
-        }
-
-        // ldrsb
-        (0b00, 0, 1, _) => {
-            let op = match L != 0 {
-                false => Operand::X,
-                true => Operand::W,
-            };
-            let extend = match O {
-                0b011 => RegExtend::lsl,
-                0b010 => RegExtend::uxtw,
-                0b110 => RegExtend::sxtw,
-                0b111 => RegExtend::sxtx,
-                _ => return None,
-            };
-            let index = match O & 1 != 0 {
-                false => IndexMode::WExt,
-                true => IndexMode::XExt,
-            };
-            let Rt = op(T as u8);
-            let index = index(M as u8, extend(0));
-
-            Some(Instruction {
-                mnemonic: Mnemonic::ldrsb,
-                operands: [
-                    Some(Rt),
-                    Some(Operand::MemXSpOff(N as u8, index)),
-                    None,
-                    None,
-                ],
-            })
-        }
-
-        // strh/ldrh
-        (0b01, 0, 0, _) => {
-            let mnemonic = match L != 0 {
-                false => Mnemonic::strh,
-                true => Mnemonic::ldrh,
-            };
-            let shift = S;
-            let extend = match O {
-                0b010 => RegExtend::uxtw,
-                0b011 => RegExtend::lsl,
-                0b110 => RegExtend::sxtw,
-                0b111 => RegExtend::sxtx,
-                _ => return None,
-            };
-            let Rt = Operand::W(T as u8);
-            let index = match O & 1 != 0 {
-                false => IndexMode::WExt,
-                true => IndexMode::XExt,
-            };
-            let index = index(M as u8, extend(shift as u8));
-
-            Some(Instruction {
-                mnemonic,
-                operands: [
-                    Some(Rt),
-                    Some(Operand::MemXSpOff(N as u8, index)),
-                    None,
-                    None,
-                ],
-            })
-        }
-
-        // ldrsh
-        (0b01, 0, 1, _) => {
-            let shift = S;
-            let op = match L != 0 {
-                false => Operand::X,
-                true => Operand::W,
-            };
-            let extend = match O {
-                0b010 => RegExtend::uxtw,
-                0b011 => RegExtend::lsl,
-                0b110 => RegExtend::sxtw,
-                0b111 => RegExtend::sxtx,
-                _ => return None,
-            };
-            let index = match O & 1 != 0 {
-                false => IndexMode::WExt,
-                true => IndexMode::XExt,
-            };
-            let Rt = op(T as u8);
-            let index = index(M as u8, extend(shift as _));
-
-            Some(Instruction {
-                mnemonic: Mnemonic::ldrsh,
-                operands: [
-                    Some(Rt),
-                    Some(Operand::MemXSpOff(N as u8, index)),
-                    None,
-                    None,
-                ],
-            })
-        }
-
-        // ldrsw
-        (0b10, 0, 1, _) if L == 0 => {
-            let shift = S * 2;
-            let extend = match O {
-                0b010 => RegExtend::uxtw,
-                0b011 => RegExtend::lsl,
-                0b110 => RegExtend::sxtw,
-                0b111 => RegExtend::sxtx,
-                _ => return None,
-            };
-            let Rt = Operand::X(T as u8);
-            let index = match O & 1 != 0 {
-                false => IndexMode::WExt,
-                true => IndexMode::XExt,
-            };
-            let index = index(M as u8, extend(shift as u8));
-
-            Some(Instruction {
-                mnemonic: Mnemonic::ldrsw,
-                operands: [
-                    Some(Rt),
-                    Some(Operand::MemXSpOff(N as u8, index)),
-                    None,
-                    None,
-                ],
-            })
-        }
-
-        // ldr/str
-        (0b10 | 0b11, 0, 0, _) => {
-            let mnemonic = match L != 0 {
-                false => Mnemonic::str,
-                true => Mnemonic::ldr,
-            };
-            let scale = match (s & 1, S & 1) {
-                (_, 0) => 0,
-                (0, 1) => 2,
-                (1, 1) => 3,
-                _ => unreachable!(),
-            };
-            let op = match s & 1 != 0 {
-                false => Operand::W,
-                true => Operand::X,
-            };
-            let extend = match O {
-                0b010 => RegExtend::uxtw,
-                0b011 => RegExtend::lsl,
-                0b110 => RegExtend::sxtw,
-                0b111 => RegExtend::sxtx,
-                _ => return None,
-            };
-            let index = match O & 1 != 0 {
-                false => IndexMode::WExt,
-                true => IndexMode::XExt,
-            };
-            let Rt = op(T as u8);
-            let index = index(M as u8, extend(scale));
-            let Rn = Operand::MemXSpOff(N as u8, index);
-
-            Some(Instruction {
-                mnemonic,
-                operands: [Some(Rt), Some(Rn), None, None],
-            })
-        }
-
+        // prfm
         (0b11, 0, 1, _) if L == 0 => {
             let scale = S * 3;
-            let extend = match O {
-                0b010 => RegExtend::uxtw,
-                0b011 => RegExtend::lsl,
-                0b110 => RegExtend::sxtw,
-                0b111 => RegExtend::sxtx,
-                _ => return None,
-            };
-            let index = match O & 1 != 0 {
-                false => IndexMode::WExt,
-                true => IndexMode::XExt,
-            };
-            let index = index(M as u8, extend(scale as u8));
+            let amount = (scale != 0).then_some(scale as u8);
+            let index = RegExtend::decode_index(M as _, O as _, amount)?;
             let Rn = Operand::MemXSpOff(N as u8, index);
             let op0 = match Prefetch::decode(T as u8) {
                 Some(prefetch) => Operand::Prefetch(prefetch),
@@ -924,6 +608,26 @@ fn decode_ldst_reg_reg(insn: u32) -> Option<Instruction> {
             Some(Instruction {
                 mnemonic: Mnemonic::prfm,
                 operands: [Some(op0), Some(Rn), None, None],
+            })
+        }
+
+        // strb/strh/str + ldrb/ldrh/ldr/ldrsb/ldrsh/ldrsw
+        (_, 0, _, _) => {
+            let (mnemonic, force_x) = load_store_mnemonic(1, 1, s, o, L)?;
+            let op = load_store_operand(force_x, s)?;
+
+            let Rt = op(T as u8);
+            let amount = (S != 0).then_some((s * S) as u8);
+            let index = RegExtend::decode_index(M as _, O as _, amount)?;
+
+            Some(Instruction {
+                mnemonic,
+                operands: [
+                    Some(Rt),
+                    Some(Operand::MemXSpOff(N as u8, index)),
+                    None,
+                    None,
+                ],
             })
         }
 
@@ -967,19 +671,30 @@ fn decode_ldst_reg_uimm(insn: u32) -> Option<Instruction> {
             })
         }
 
-        // str/ldr (imm)
-        "1s 0 0L" => {
-            let mnemonic = match L != 0 {
-                false => Mnemonic::str,
-                true => Mnemonic::ldr,
+        // prfm
+        "11 0 10" => {
+            let op0 = match Prefetch::decode(T as u8) {
+                Some(prefetch) => Operand::Prefetch(prefetch),
+                None => Operand::Imm(T as _),
             };
-            let op = match s != 0 {
-                false => Operand::W,
-                true => Operand::X,
-            };
+            let imm = (i as u64) << 3;
 
-            let scale = 2 + s;
-            let imm = (i as u64) << scale;
+            Some(Instruction {
+                mnemonic: Mnemonic::prfm,
+                operands: [
+                    Some(op0),
+                    Some(Operand::MemXSpOff(N, IndexMode::Unsigned(imm))),
+                    None,
+                    None,
+                ],
+            })
+        }
+
+        "ss 0 SL" => {
+            let (mnemonic, force_x) = load_store_mnemonic(1, 1, s, S, L)?;
+            let op = load_store_operand(force_x, s)?;
+
+            let imm = (i as u64) << s;
             let Rt = op(T);
 
             Some(Instruction {
@@ -993,93 +708,63 @@ fn decode_ldst_reg_uimm(insn: u32) -> Option<Instruction> {
             })
         }
 
-        // strh/ldrh (imm)
-        "01 0 0L" => {
-            let mnemonic = match L != 0 {
-                false => Mnemonic::strh,
-                true => Mnemonic::ldrh,
-            };
-            let Rt = Operand::W(T);
-
-            Some(Instruction {
-                mnemonic,
-                operands: [
-                    Some(Rt),
-                    Some(Operand::MemXSpOff(N, IndexMode::Unsigned(i as u64 * 2))),
-                    None,
-                    None,
-                ],
-            })
-        }
-
-        // ldrsh
-        "01 0 1L" => {
-            let op = match L != 0 {
-                false => Operand::X,
-                true => Operand::W,
-            };
-            let Rt = op(T);
-
-            Some(Instruction {
-                mnemonic: Mnemonic::ldrsh,
-                operands: [
-                    Some(Rt),
-                    Some(Operand::MemXSpOff(N, IndexMode::Unsigned(i as u64 * 2))),
-                    None,
-                    None,
-                ],
-            })
-        }
-
-        // strb/ldrb (imm)
-        "00 0 0L" => {
-            let mnemonic = match L != 0 {
-                false => Mnemonic::strb,
-                true => Mnemonic::ldrb,
-            };
-            let Rt = Operand::W(T);
-
-            Some(Instruction {
-                mnemonic,
-                operands: [
-                    Some(Rt),
-                    Some(Operand::MemXSpOff(N, IndexMode::Unsigned(i as u64))),
-                    None,
-                    None,
-                ],
-            })
-        }
-
-        // ldrsb
-        "00 0 1L" => {
-            let op = match L != 0 {
-                false => Operand::X,
-                true => Operand::W,
-            };
-            let Rt = op(T);
-
-            Some(Instruction {
-                mnemonic: Mnemonic::ldrsb,
-                operands: [
-                    Some(Rt),
-                    Some(Operand::MemXSpOff(N, IndexMode::Unsigned(i as u64))),
-                    None,
-                    None,
-                ],
-            })
-        }
-
-        // ldrsw
-        "10 0 10" => Some(Instruction {
-            mnemonic: Mnemonic::ldrsw,
-            operands: [
-                Some(Operand::X(T)),
-                Some(Operand::MemXSpOff(N, IndexMode::Unsigned((i << 2).into()))),
-                None,
-                None,
-            ],
-        }),
-
         _ => None,
     }
+}
+
+fn load_store_operand(force_x: bool, size: u32) -> Option<fn(u8) -> Operand> {
+    match (force_x, size) {
+        (true, _) => Some(Operand::X),
+        (_, 0..=2) => Some(Operand::W),
+        (_, 3) => Some(Operand::X),
+        _ => None,
+    }
+}
+
+fn load_store_mnemonic(
+    privf: u32,
+    scalef: u32,
+    scale: u32,
+    signed: u32,
+    load: u32,
+) -> Option<(Mnemonic, bool)> {
+    let (mnemonic, force_x) = match (privf, scalef, scale, signed, load) {
+        (0, 0, _, _, _) => return None,
+
+        // Unprivileged
+        (0, _, 0, 1, _) => (Mnemonic::ldtrsb, load == 0),
+        (0, _, 1, 1, _) => (Mnemonic::ldtrsh, load == 0),
+        (0, _, 2, 1, _) => (Mnemonic::ldtrsw, load == 0),
+        (0, _, 0, 0, 0) => (Mnemonic::sttrb, false),
+        (0, _, 0, 0, 1) => (Mnemonic::ldtrb, false),
+        (0, _, 1, 0, 0) => (Mnemonic::sttrh, false),
+        (0, _, 1, 0, 1) => (Mnemonic::ldtrh, false),
+        (0, _, _, 0, 0) => (Mnemonic::sttr, false),
+        (0, _, _, 0, 1) => (Mnemonic::ldtr, false),
+
+        // Unscaled
+        (_, 0, 0, 1, _) => (Mnemonic::ldursb, load == 0),
+        (_, 0, 1, 1, _) => (Mnemonic::ldursh, load == 0),
+        (_, 0, 2, 1, _) => (Mnemonic::ldursw, load == 0),
+        (_, 0, 0, 0, 0) => (Mnemonic::sturb, false),
+        (_, 0, 0, 0, 1) => (Mnemonic::ldurb, false),
+        (_, 0, 1, 0, 0) => (Mnemonic::sturh, false),
+        (_, 0, 1, 0, 1) => (Mnemonic::ldurh, false),
+        (_, 0, _, 0, 0) => (Mnemonic::stur, false),
+        (_, 0, _, 0, 1) => (Mnemonic::ldur, false),
+
+        // Other
+        (1, 1, 0, 1, _) => (Mnemonic::ldrsb, load == 0),
+        (1, 1, 1, 1, _) => (Mnemonic::ldrsh, load == 0),
+        (1, 1, 2, 1, _) => (Mnemonic::ldrsw, load == 0),
+        (1, 1, 0, 0, 0) => (Mnemonic::strb, false),
+        (1, 1, 0, 0, 1) => (Mnemonic::ldrb, false),
+        (1, 1, 1, 0, 0) => (Mnemonic::strh, false),
+        (1, 1, 1, 0, 1) => (Mnemonic::ldrh, false),
+        (1, 1, _, 0, 0) => (Mnemonic::str, false),
+        (1, 1, _, 0, 1) => (Mnemonic::ldr, false),
+        _ => return None,
+    };
+
+    Some((mnemonic, force_x))
 }

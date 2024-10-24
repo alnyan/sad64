@@ -114,7 +114,7 @@ pub enum RegExtendWord {
 #[derive(Debug, Clone, Copy)]
 pub struct RegExtend {
     pub word: RegExtendWord,
-    pub amount: u8,
+    pub amount: Option<u8>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -262,7 +262,7 @@ impl fmt::Display for Barrier {
 macro_rules! reg_extend_cons {
     ($($word:ident),+) => {
         $(
-            pub fn $word(amount: u8) -> Self {
+            pub fn $word(amount: Option<u8>) -> Self {
                 Self {
                     word: RegExtendWord::$word,
                     amount,
@@ -275,10 +275,29 @@ impl RegExtend {
     reg_extend_cons!(uxtb, uxth, uxtw, uxtx, sxtb, sxtw, sxth, sxtx, lsl);
 
     pub fn is_displayed(&self) -> bool {
-        self.word != RegExtendWord::lsl || self.amount != 0
+        self.word != RegExtendWord::lsl || !self.amount.is_none()
     }
 
-    pub fn decode(option: u8, amount: u8) -> Self {
+    pub fn decode_index(Rm: u8, option: u8, amount: Option<u8>) -> Option<IndexMode> {
+        let extend = Self::decode4(option, amount)?;
+        let index = match option & 1 != 0 {
+            false => IndexMode::WExt(Rm, extend),
+            true => IndexMode::XExt(Rm, extend),
+        };
+        Some(index)
+    }
+
+    pub fn decode4(option: u8, amount: Option<u8>) -> Option<Self> {
+        match option {
+            0b010 => Some(Self::uxtw(amount)),
+            0b011 => Some(Self::lsl(amount)),
+            0b110 => Some(Self::sxtw(amount)),
+            0b111 => Some(Self::sxtx(amount)),
+            _ => None,
+        }
+    }
+
+    pub fn decode(option: u8, amount: Option<u8>) -> Self {
         match option {
             0 => Self::uxtb(amount),
             1 => Self::uxth(amount),
@@ -323,8 +342,8 @@ impl fmt::Display for RegExtend {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         assert!(self.is_displayed());
         fmt::Debug::fmt(&self.word, f)?;
-        if self.amount != 0 {
-            f.write_fmt(format_args!(" #{}", self.amount))
+        if let Some(amount) = self.amount {
+            f.write_fmt(format_args!(" #{}", amount))
         } else {
             Ok(())
         }

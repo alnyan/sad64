@@ -156,7 +156,29 @@ load_store_single:
     prfum plil3keep, [x3, #-7]
 .size load_store_single, . - load_store_single
 
-load_store_reg_off_extend:
+load_store_reg_off:
+    # No shift/extend
+    strb w1, [x2, x3]
+    ldrb w1, [x2, x3]
+
+    strh w1, [x2, x3]
+    ldrh w1, [x2, x3]
+
+    str w1, [x2, x3]
+    ldr w1, [x2, x3]
+
+    str x1, [x2, x3]
+    ldr x1, [x2, x3]
+
+    ldrsb w1, [x2, x3]
+    ldrsb x1, [x2, x3]
+
+    ldrsh w1, [x2, x3]
+    ldrsh x1, [x2, x3]
+
+    ldrsw x1, [x2, x3]
+
+    # No S
     strb w1, [x2, w3, sxtw]
     strb w1, [x2, w3, uxtw]
     strb w1, [x2, x3, sxtx]
@@ -164,90 +186,92 @@ load_store_reg_off_extend:
     ldrb w1, [x2, w3, uxtw]
     ldrb w1, [x2, x3, sxtx]
 
+    strh w1, [x2, w3, sxtw]
+    strh w1, [x2, w3, sxtw #1]
+    strh w1, [x2, w3, uxtw]
+    strh w1, [x2, w3, uxtw #1]
+    strh w1, [x2, x3, sxtx]
+    strh w1, [x2, x3, sxtx #1]
+    strh w1, [x2, x3, lsl #1]
+    ldrh w1, [x2, w3, sxtw]
+    ldrh w1, [x2, w3, sxtw #1]
+    ldrh w1, [x2, w3, uxtw]
+    ldrh w1, [x2, w3, uxtw #1]
+    ldrh w1, [x2, x3, sxtx]
+    ldrh w1, [x2, x3, sxtx #1]
+    ldrh w1, [x2, x3, lsl #1]
+
+    str w1, [x2, w3, sxtw]
+    str w1, [x2, w3, sxtw #2]
+    str w1, [x2, w3, uxtw]
+    str w1, [x2, w3, uxtw #2]
+    str w1, [x2, x3, sxtx]
+    str w1, [x2, x3, sxtx #2]
+    str w1, [x2, x3, lsl #2]
+    ldr w1, [x2, w3, sxtw]
+    ldr w1, [x2, w3, sxtw #2]
+    ldr w1, [x2, w3, uxtw]
+    ldr w1, [x2, w3, uxtw #2]
+    ldr w1, [x2, x3, sxtx]
+    ldr w1, [x2, x3, sxtx #2]
+    ldr w1, [x2, x3, lsl #2]
+
+    str x1, [x2, w3, sxtw]
+    str x1, [x2, w3, sxtw #3]
+    str x1, [x2, w3, uxtw]
+    str x1, [x2, w3, uxtw #3]
+    str x1, [x2, x3, sxtx]
+    str x1, [x2, x3, sxtx #3]
+    str x1, [x2, x3, lsl #3]
+    ldr x1, [x2, w3, sxtw]
+    ldr x1, [x2, w3, sxtw #3]
+    ldr x1, [x2, w3, uxtw]
+    ldr x1, [x2, w3, uxtw #3]
+    ldr x1, [x2, x3, sxtx]
+    ldr x1, [x2, x3, sxtx #3]
+    ldr x1, [x2, x3, lsl #3]
+
+    # S
     ldrsb w1, [x2, w3, sxtw]
     ldrsb w1, [x2, w3, uxtw]
     ldrsb w1, [x2, x3, sxtx]
+    ldrsb w1, [x2, x3, sxtx #0]
     ldrsb x1, [x2, w3, sxtw]
     ldrsb x1, [x2, w3, uxtw]
     ldrsb x1, [x2, x3, sxtx]
-
-    strh w1, [x2, w3, sxtw]
-    strh w1, [x2, w3, uxtw]
-    strh w1, [x2, x3, sxtx]
-    ldrh w1, [x2, w3, sxtw]
-    ldrh w1, [x2, w3, uxtw]
-    ldrh w1, [x2, x3, sxtx]
+    ldrsb x1, [x2, x3, sxtx #0]
 
     ldrsh w1, [x2, w3, sxtw]
+    ldrsh w1, [x2, w3, sxtw #1]
     ldrsh w1, [x2, w3, uxtw]
+    ldrsh w1, [x2, w3, uxtw #1]
     ldrsh w1, [x2, x3, sxtx]
-    ldrsh x1, [x2, w3, sxtw]
-    ldrsh x1, [x2, w3, uxtw]
-    ldrsh x1, [x2, x3, sxtx]
-
-    ldrsw x1, [x2, w3, sxtw]
-    ldrsw x1, [x2, w3, uxtw]
-    ldrsw x1, [x2, x3, sxtx]
-
-    str w1, [x2, w3, sxtw]
-    str w1, [x2, w3, uxtw]
-    str w1, [x2, x3, sxtx]
-    str x1, [x2, w3, sxtw]
-    str x1, [x2, w3, uxtw]
-    str x1, [x2, x3, sxtx]
-
-    ldr w1, [x2, w3, sxtw]
-    ldr w1, [x2, w3, uxtw]
-    ldr w1, [x2, x3, sxtx]
-    ldr x1, [x2, w3, sxtw]
-    ldr x1, [x2, w3, uxtw]
-    ldr x1, [x2, x3, sxtx]
-
-    str w1, [x2, w3, sxtw #2]
-
-    prfm pldl1keep, [x2, w3, sxtw]
-    prfm pldl1keep, [x2, w3, uxtw]
-    prfm pldl1keep, [x2, x3, sxtx]
-.size load_store_reg_off_extend, . - load_store_reg_off_extend
-
-load_store_reg_off_shift:
-    strh w1, [x2, x3, lsl #1]
-    ldrh w1, [x2, x3, lsl #1]
-
+    ldrsh w1, [x2, x3, sxtx #1]
     ldrsh w1, [x2, x3, lsl #1]
+    ldrsh x1, [x2, w3, sxtw]
+    ldrsh x1, [x2, w3, sxtw #1]
+    ldrsh x1, [x2, w3, uxtw]
+    ldrsh x1, [x2, w3, uxtw #1]
+    ldrsh x1, [x2, x3, sxtx]
+    ldrsh x1, [x2, x3, sxtx #1]
     ldrsh x1, [x2, x3, lsl #1]
 
+    ldrsw x1, [x2, w3, sxtw]
+    ldrsw x1, [x2, w3, sxtw #2]
+    ldrsw x1, [x2, w3, uxtw]
+    ldrsw x1, [x2, w3, uxtw #2]
+    ldrsw x1, [x2, x3, sxtx]
+    ldrsw x1, [x2, x3, sxtx #2]
     ldrsw x1, [x2, x3, lsl #2]
 
-    str w1, [x2, x3, lsl #2]
-    str x1, [x2, x3, lsl #3]
-    ldr w1, [x2, x3, lsl #2]
-    ldr x1, [x2, x3, lsl #3]
-
+    prfm pldl1keep, [x2, x3]
+    prfm pldl1keep, [x2, w3, sxtw]
+    prfm pldl1keep, [x2, w3, sxtw #3]
+    prfm pldl1keep, [x2, w3, uxtw]
+    prfm pldl1keep, [x2, w3, uxtw #3]
+    prfm pldl1keep, [x2, x3, sxtx]
+    prfm pldl1keep, [x2, x3, sxtx #3]
     prfm pldl1keep, [x2, x3, lsl #3]
-.size load_store_reg_off_shift, . - load_store_reg_off_shift
-
-load_store_reg_off:
-    strb w1, [x2, x3]
-    ldrb w1, [x2, x3]
-
-    ldrsb w1, [x2, x3]
-    ldrsb x1, [x2, x3]
-
-    strh w1, [x2, x3]
-    ldrh w1, [x2, x3]
-
-    ldrsh w1, [x2, x3]
-    ldrsh x1, [x2, x3]
-
-    ldrsw x1, [x2, x3]
-
-    str w1, [x2, x3]
-    str x1, [x2, x3]
-    ldr w1, [x2, x3]
-    ldr x1, [x2, x3]
-
-    prfm pstl3strm, [x2, x3]
 .size load_store_reg_off, . - load_store_reg_off
 
 load_store_reg_uimm:
@@ -269,6 +293,8 @@ load_store_reg_uimm:
     str x1, [x2, #16]
     ldr w1, [x2, #12]
     ldr x1, [x2, #16]
+
+    prfm pldl1keep, [x1, #1000]
 .size load_store_reg_uimm, . - load_store_reg_uimm
 
 load_store_unpriv:

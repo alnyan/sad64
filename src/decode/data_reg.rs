@@ -290,9 +290,9 @@ fn decode_addsub_reg(insn: u32) -> Option<Instruction> {
             }
 
             let extend = if (b == 0b010 || b == 0b011) && (N == 0b11111 || D == 0b11111) {
-                RegExtend::lsl(i as u8)
+                RegExtend::lsl(Some(i as u8))
             } else {
-                RegExtend::decode(b as u8, i as u8)
+                RegExtend::decode(b as u8, Some(i as u8))
             };
 
             let op01 = match s != 0 {
