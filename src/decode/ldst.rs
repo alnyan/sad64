@@ -353,7 +353,22 @@ fn decode_ldst_reg_lit(insn: u32) -> Option<Instruction> {
     let "oo ??? V ?? iiiiiiiiiiiiiiiiiii TTTTT" = insn;
 
     match (o, V) {
-        (_, 1) => todo!("vector load literal"),
+        (0b11, 1) => return None,
+        (_, 1) => {
+            let op0 = match o {
+                0b00 => VectorMulti::s,
+                0b01 => VectorMulti::d,
+                0b10 => VectorMulti::q,
+                _ => unreachable!(),
+            };
+            let Rt = Operand::VMulti(op0(T as u8));
+            let off = sext((i as u64) << 2, 20);
+
+            Some(Instruction {
+                mnemonic: Mnemonic::ldr,
+                operands: [Some(Rt), Some(Operand::PcRelImm(off)), None, None],
+            })
+        }
         // prfm
         (0b11, 0) => {
             let op0 = match Prefetch::decode(T as u8) {
@@ -382,7 +397,7 @@ fn decode_ldst_reg_lit(insn: u32) -> Option<Instruction> {
                 operands: [Some(Rt), Some(Operand::PcRelImm(off)), None, None],
             })
         }
-        _ => None,
+        _ => unreachable!(),
     }
 }
 
@@ -390,6 +405,44 @@ fn decode_ldst_reg_lit(insn: u32) -> Option<Instruction> {
 fn decode_ldst_reg_pair(insn: u32) -> Option<Instruction> {
     #[bitmatch]
     match insn {
+        // Vector load/store pair
+        "ss 101 1 0mm L iiiiiii ttttt NNNNN TTTTT" => {
+            let mode = match m {
+                // No-allocate pair
+                0b00 => offset_index_simm,
+                // Post-index
+                0b01 => post_index_simm,
+                // Offset
+                0b10 => offset_index_simm,
+                // Pre-index
+                0b11 => pre_index_simm,
+                _ => unreachable!(),
+            };
+
+            let op01 = match s {
+                0b00 => VectorMulti::s,
+                0b01 => VectorMulti::d,
+                0b10 => VectorMulti::q,
+                _ => return None,
+            };
+
+            let mnemonic = match (m, L != 0) {
+                (0b00, false) => Mnemonic::stnp,
+                (0b00, true) => Mnemonic::ldnp,
+                (_, false) => Mnemonic::stp,
+                (_, true) => Mnemonic::ldp,
+            };
+
+            let Rt1 = Operand::VMulti(op01(T as u8));
+            let Rt2 = Operand::VMulti(op01(t as u8));
+            let scale = s + 2;
+            let (mem1, mem2) = mode(N as u8, i, scale, 6);
+
+            Some(Instruction {
+                mnemonic,
+                operands: [Some(Rt1), Some(Rt2), mem1, mem2],
+            })
+        }
         "s0 101 0 0mm L iiiiiii ttttt NNNNN TTTTT" => {
             let mode = match m {
                 // No-allocate pair
@@ -444,6 +497,35 @@ fn decode_ldst_reg(insn: u32) -> Option<Instruction> {
     };
 
     match (pri, s, V, o, L) {
+        (1, _, 1, _, _) => {
+            let (size, op): (_, fn(_) -> _) = match (s, o) {
+                (0b00, 0) => (1, VectorMulti::b),
+                (0b00, 1) => (16, VectorMulti::q),
+                (0b01, 0) => (2, VectorMulti::h),
+                (0b10, 0) => (4, VectorMulti::s),
+                (0b11, 0) => (8, VectorMulti::d),
+                _ => return None,
+            };
+            // No immediate pre-index for <32bit
+            if size < 4 && m == 0b11 {
+                return None;
+            }
+            let mnemonic = match (scale, L != 0) {
+                (0, false) => Mnemonic::stur,
+                (0, true) => Mnemonic::ldur,
+                (1, false) => Mnemonic::str,
+                (1, true) => Mnemonic::ldr,
+                _ => unreachable!(),
+            };
+            let (mem1, mem2) = mode(N as u8, i, 0, 8);
+            let Rt = Operand::VMulti(op(T as u8));
+
+            Some(Instruction {
+                mnemonic,
+                operands: [Some(Rt), mem1, mem2, None],
+            })
+        }
+
         // strb/ldrb
         (_, 0b00, 0, 0, _) => {
             let mnemonic = match (pri, scale, L != 0) {
@@ -588,32 +670,54 @@ fn decode_ldst_reg_reg(insn: u32) -> Option<Instruction> {
     let "ss ??? V ?? oL ? MMMMM OOO S ?? NNNNN TTTTT" = insn;
 
     match (s, V, o, O) {
-        // strb/ldrb - shifted
-        (0b00, 0, 0, 0b011) => {
-            let mnemonic = match L != 0 {
-                false => Mnemonic::strb,
-                true => Mnemonic::ldrb,
+        // simd load/store
+        (_, 1, _, _) => {
+            let (scale, op): (_, fn(_) -> _) = match (s, o) {
+                (0b00, 0) => (0, VectorMulti::b),
+                (0b01, 0) => (1, VectorMulti::h),
+                (0b10, 0) => (2, VectorMulti::s),
+                (0b11, 0) => (3, VectorMulti::d),
+                (0b00, 1) => (4, VectorMulti::q),
+                _ => return None,
             };
-            let Rt = Operand::W(T as u8);
-            // TODO vague description of <amount> field
+            let mnemonic = match L != 0 {
+                false => Mnemonic::str,
+                true => Mnemonic::ldr,
+            };
+            let extend = match O {
+                0b010 => RegExtend::uxtw,
+                0b011 if scale >= 1 => RegExtend::lsl,
+                0b110 => RegExtend::sxtw,
+                0b111 => RegExtend::sxtx,
+                _ => return None,
+            };
+            let index = match O & 1 != 0 {
+                false => IndexMode::WExt,
+                true => IndexMode::XExt,
+            };
+            let Rt = Operand::VMulti(op(T as u8));
+            let index = index(M as u8, extend(scale * S as u8));
 
             Some(Instruction {
                 mnemonic,
                 operands: [
                     Some(Rt),
-                    Some(Operand::MemXSpOff(N as u8, IndexMode::X(M as u8))),
+                    Some(Operand::MemXSpOff(N as u8, index)),
                     None,
                     None,
                 ],
             })
         }
-        // strb/ldrb - extended
+
+        // TODO merge these encodings?
+        // strb/ldrb
         (0b00, 0, 0, _) => {
             let mnemonic = match L != 0 {
                 false => Mnemonic::strb,
                 true => Mnemonic::ldrb,
             };
             let extend = match O {
+                0b011 => RegExtend::lsl,
                 0b010 => RegExtend::uxtw,
                 0b110 => RegExtend::sxtw,
                 0b111 => RegExtend::sxtx,
@@ -637,40 +741,14 @@ fn decode_ldst_reg_reg(insn: u32) -> Option<Instruction> {
             })
         }
 
-        // ldrsb shifted
-        (0b00, 0, 1, 0b011) => {
-            if S != 0 {
-                return None;
-            }
-
-            let op = match L != 0 {
-                false => Operand::X,
-                true => Operand::W,
-            };
-            let index = match O & 1 != 0 {
-                false => IndexMode::WExt,
-                true => IndexMode::XExt,
-            };
-            let Rt = op(T as u8);
-            let index = index(M as u8, RegExtend::lsl(0));
-
-            Some(Instruction {
-                mnemonic: Mnemonic::ldrsb,
-                operands: [
-                    Some(Rt),
-                    Some(Operand::MemXSpOff(N as u8, index)),
-                    None,
-                    None,
-                ],
-            })
-        }
-        // ldrsb extended
+        // ldrsb
         (0b00, 0, 1, _) => {
             let op = match L != 0 {
                 false => Operand::X,
                 true => Operand::W,
             };
             let extend = match O {
+                0b011 => RegExtend::lsl,
                 0b010 => RegExtend::uxtw,
                 0b110 => RegExtend::sxtw,
                 0b111 => RegExtend::sxtx,
@@ -863,6 +941,32 @@ fn decode_ldst_reg_uimm(insn: u32) -> Option<Instruction> {
 
     #[bitmatch]
     match o {
+        "ss 1 sL" => {
+            let op = match s {
+                0b000 => VectorMulti::b,
+                0b001 => VectorMulti::q,
+                0b010 => VectorMulti::h,
+                0b100 => VectorMulti::s,
+                0b110 => VectorMulti::d,
+                _ => return None,
+            };
+            let Rt = Operand::VMulti(op(T));
+            let mnemonic = match L != 0 {
+                false => Mnemonic::str,
+                true => Mnemonic::ldr,
+            };
+
+            Some(Instruction {
+                mnemonic,
+                operands: [
+                    Some(Rt),
+                    Some(Operand::MemXSpOff(N, IndexMode::Unsigned(i as u64))),
+                    None,
+                    None,
+                ],
+            })
+        }
+
         // str/ldr (imm)
         "1s 0 0L" => {
             let mnemonic = match L != 0 {
