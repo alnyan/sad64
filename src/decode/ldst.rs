@@ -729,29 +729,27 @@ fn load_store_mnemonic(
     load: u32,
 ) -> Option<(Mnemonic, bool)> {
     let (mnemonic, force_x) = match (privf, scalef, scale, signed, load) {
-        (0, 0, _, _, _) => return None,
-
         // Unprivileged
-        (0, _, 0, 1, _) => (Mnemonic::ldtrsb, load == 0),
-        (0, _, 1, 1, _) => (Mnemonic::ldtrsh, load == 0),
-        (0, _, 2, 1, _) => (Mnemonic::ldtrsw, load == 0),
-        (0, _, 0, 0, 0) => (Mnemonic::sttrb, false),
-        (0, _, 0, 0, 1) => (Mnemonic::ldtrb, false),
-        (0, _, 1, 0, 0) => (Mnemonic::sttrh, false),
-        (0, _, 1, 0, 1) => (Mnemonic::ldtrh, false),
-        (0, _, _, 0, 0) => (Mnemonic::sttr, false),
-        (0, _, _, 0, 1) => (Mnemonic::ldtr, false),
+        (0, 1, 0, 1, _) => (Mnemonic::ldtrsb, load == 0),
+        (0, 1, 1, 1, _) => (Mnemonic::ldtrsh, load == 0),
+        (0, 1, 2, 1, _) => (Mnemonic::ldtrsw, load == 0),
+        (0, 1, 0, 0, 0) => (Mnemonic::sttrb, false),
+        (0, 1, 0, 0, 1) => (Mnemonic::ldtrb, false),
+        (0, 1, 1, 0, 0) => (Mnemonic::sttrh, false),
+        (0, 1, 1, 0, 1) => (Mnemonic::ldtrh, false),
+        (0, 1, _, 0, 0) => (Mnemonic::sttr, false),
+        (0, 1, _, 0, 1) => (Mnemonic::ldtr, false),
 
         // Unscaled
-        (_, 0, 0, 1, _) => (Mnemonic::ldursb, load == 0),
-        (_, 0, 1, 1, _) => (Mnemonic::ldursh, load == 0),
-        (_, 0, 2, 1, _) => (Mnemonic::ldursw, load == 0),
-        (_, 0, 0, 0, 0) => (Mnemonic::sturb, false),
-        (_, 0, 0, 0, 1) => (Mnemonic::ldurb, false),
-        (_, 0, 1, 0, 0) => (Mnemonic::sturh, false),
-        (_, 0, 1, 0, 1) => (Mnemonic::ldurh, false),
-        (_, 0, _, 0, 0) => (Mnemonic::stur, false),
-        (_, 0, _, 0, 1) => (Mnemonic::ldur, false),
+        (1, 0, 0, 1, _) => (Mnemonic::ldursb, load == 0),
+        (1, 0, 1, 1, _) => (Mnemonic::ldursh, load == 0),
+        (1, 0, 2, 1, _) => (Mnemonic::ldursw, load == 0),
+        (1, 0, 0, 0, 0) => (Mnemonic::sturb, false),
+        (1, 0, 0, 0, 1) => (Mnemonic::ldurb, false),
+        (1, 0, 1, 0, 0) => (Mnemonic::sturh, false),
+        (1, 0, 1, 0, 1) => (Mnemonic::ldurh, false),
+        (1, 0, _, 0, 0) => (Mnemonic::stur, false),
+        (1, 0, _, 0, 1) => (Mnemonic::ldur, false),
 
         // Other
         (1, 1, 0, 1, _) => (Mnemonic::ldrsb, load == 0),

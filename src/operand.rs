@@ -13,11 +13,15 @@ pub enum Operand {
     VMulti(VectorMulti),
     // vN.t
     VSingle(VectorSingle),
+    // vN.t[i]
+    VSingleIndex(VectorSingle, u8),
     // { vN.Xt, vM.Yt ... }
     VMultiGroup(VectorMultiGroup),
     // { vN.t, vM.t, ... }[i]
     VSingleGroup(VectorSingleGroup),
 
+    DecImm(u64),
+    FpImm(f64),
     Imm(u64),
     Simm(i64),
     PcRelImm(i64),

@@ -69,6 +69,8 @@ impl Formatter for SimpleFormatter {
                     }
                 }
 
+                Operand::DecImm(imm) => print!("#{}", imm),
+                Operand::FpImm(imm) => print!("#{:?}", imm),
                 Operand::Imm(imm) => print!("#{:#x}", imm),
                 Operand::Simm(imm) => print!("#{:#x}", Signed(imm)),
                 Operand::Lsl(x) => print!("lsl #{}", x),
@@ -91,6 +93,7 @@ impl Formatter for SimpleFormatter {
                 // SIMD register
                 Operand::VMulti(v) => print!("{}", v),
                 Operand::VSingle(v) => print!("{}", v),
+                Operand::VSingleIndex(v, i) => print!("{}[{}]", v, i),
                 Operand::VMultiGroup(grp) => print!("{}", grp),
                 Operand::VSingleGroup(grp) => print!("{}", grp),
 
