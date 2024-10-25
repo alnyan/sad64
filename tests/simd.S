@@ -444,3 +444,547 @@ simd_copy_alias:
     ins v1.d[0], v2.d[1]
     mov v1.d[0], v2.d[1]
 .size simd_copy_alias, . - simd_copy_alias
+
+simd_2reg_misc:
+    rev64 v1.8b, v2.8b
+    rev64 v1.16b, v2.16b
+    rev64 v1.2s, v2.2s
+    rev64 v1.4s, v2.4s
+
+    rev16 v1.8b, v2.8b
+    rev16 v1.16b, v2.16b
+
+    saddlp v1.8h, v2.16b
+    saddlp v1.4h, v2.8b
+    saddlp v1.4s, v2.8h
+    saddlp v1.2d, v2.4s
+
+    suqadd v1.8b, v2.8b
+    suqadd v1.16b, v2.16b
+    suqadd v1.4h, v2.4h
+    suqadd v1.4s, v2.4s
+    suqadd v1.2d, v2.2d
+
+    cls v1.8b, v2.8b
+    cls v1.16b, v2.16b
+    cls v1.4h, v2.4h
+    cls v1.2s, v2.2s
+
+    cnt v1.8b, v2.8b
+    cnt v1.16b, v2.16b
+
+    sadalp v1.4h, v2.8b
+    sadalp v1.8h, v2.16b
+    sadalp v1.2s, v2.4h
+    sadalp v1.4s, v2.8h
+    sadalp v1.2d, v2.4s
+
+    sqabs v1.8b, v2.8b
+    sqabs v1.16b, v2.16b
+    sqabs v1.4h, v2.4h
+    sqabs v1.4s, v2.4s
+    sqabs v1.2d, v2.2d
+
+    cmgt v1.8b, v2.8b, #0
+    cmgt v1.16b, v2.16b, #0
+    cmgt v1.2d, v2.2d, #0
+    cmeq v1.8b, v2.8b, #0
+    cmeq v1.16b, v2.16b, #0
+    cmeq v1.2d, v2.2d, #0
+    cmlt v1.8b, v2.8b, #0
+    cmlt v1.16b, v2.16b, #0
+    cmlt v1.2d, v2.2d, #0
+
+    abs v1.8b, v2.8b
+    abs v1.16b, v2.16b
+    abs v1.2d, v2.2d
+
+    xtn v1.8b, v2.8h
+    xtn v1.4h, v2.4s
+    xtn v1.2s, v2.2d
+    xtn2 v1.16b, v2.8h
+    xtn2 v1.8h, v2.4s
+    xtn2 v1.4s, v2.2d
+
+    sqxtn v1.8b, v2.8h
+    sqxtn v1.2s, v2.2d
+    sqxtn2 v1.16b, v2.8h
+    sqxtn2 v1.4s, v2.2d
+
+    fcvtn v1.4h, v2.4s
+    fcvtn v1.2s, v2.2d
+    fcvtn2 v1.8h, v2.4s
+    fcvtn2 v1.4s, v2.2d
+
+    fcvtl v1.4s, v2.4h
+    fcvtl v1.2d, v2.2s
+    fcvtl2 v1.4s, v2.8h
+    fcvtl2 v1.2d, v2.4s
+
+    frintn v1.2s, v2.2s
+    frintn v1.4s, v2.4s
+    frintn v1.2d, v2.2d
+    frintm v1.2s, v2.2s
+    frintm v1.4s, v2.4s
+    frintm v1.2d, v2.2d
+    fcvtns v1.2s, v2.2s
+    fcvtns v1.4s, v2.4s
+    fcvtns v1.2d, v2.2d
+    fcvtms v1.2s, v2.2s
+    fcvtms v1.4s, v2.4s
+    fcvtms v1.2d, v2.2d
+    fcvtas v1.2s, v2.2s
+    fcvtas v1.4s, v2.4s
+    fcvtas v1.2d, v2.2d
+    scvtf v1.2s, v2.2s
+    scvtf v1.4s, v2.4s
+    scvtf v1.2d, v2.2d
+
+    fcmgt v1.2s, v2.2s, #0
+    fcmgt v1.2d, v2.2d, #0
+    fcmeq v1.2s, v2.2s, #0
+    fcmeq v1.2d, v2.2d, #0
+    fcmlt v1.2s, v2.2s, #0
+    fcmlt v1.2d, v2.2d, #0
+
+    fabs v1.2s, v2.2s
+    fabs v1.2d, v2.2d
+
+    frintp v1.2s, v2.2s
+    frintp v1.4s, v2.4s
+    frintp v1.2d, v2.2d
+    frintz v1.2s, v2.2s
+    frintz v1.4s, v2.4s
+    frintz v1.2d, v2.2d
+    fcvtps v1.2s, v2.2s
+    fcvtps v1.2d, v2.2d
+    fcvtzs v1.4s, v2.4s
+    fcvtzs v1.2d, v2.2d
+
+    urecpe v1.2s, v2.2s
+    urecpe v1.4s, v2.4s
+    frecpe v1.2s, v2.2s
+    frecpe v1.4s, v2.4s
+    frecpe v1.2d, v2.2d
+
+    rev32 v1.8b, v2.8b
+    rev32 v1.16b, v2.16b
+    rev32 v1.4h, v2.4h
+    rev32 v1.8h, v2.8h
+
+    uaddlp v1.4h, v2.8b
+    uaddlp v1.8h, v2.16b
+    uaddlp v1.1d, v2.2s
+    uaddlp v1.2d, v2.4s
+
+    usqadd v1.8b, v2.8b
+    usqadd v1.16b, v2.16b
+    usqadd v1.4h, v2.4h
+    usqadd v1.4s, v2.4s
+    usqadd v1.2d, v2.2d
+
+    clz v1.8b, v2.8b
+    clz v1.16b, v2.16b
+    clz v1.4h, v2.4h
+    clz v1.4s, v2.4s
+
+    uadalp v1.4h, v2.8b
+    uadalp v1.8h, v2.16b
+    uadalp v1.2s, v2.4h
+    uadalp v1.4s, v2.8h
+    uadalp v1.1d, v2.2s
+    uadalp v1.2d, v2.4s
+
+    sqneg v1.8b, v2.8b
+    sqneg v1.16b, v2.16b
+    sqneg v1.4h, v2.4h
+    sqneg v1.4s, v2.4s
+    sqneg v1.2d, v2.2d
+
+    cmge v1.8b, v2.8b, #0
+    cmge v1.16b, v2.16b, #0
+    cmge v1.4h, v2.4h, #0
+    cmge v1.4s, v2.4s, #0
+    cmge v1.2d, v2.2d, #0
+    cmle v1.8b, v2.8b, #0
+    cmle v1.16b, v2.16b, #0
+    cmle v1.4h, v2.4h, #0
+    cmle v1.4s, v2.4s, #0
+    cmle v1.2d, v2.2d, #0
+
+    neg v1.8b, v2.8b
+    neg v1.16b, v2.16b
+    neg v1.4h, v2.4h
+    neg v1.4s, v2.4s
+    neg v1.2d, v2.2d
+
+    sqxtun v1.8b, v2.8h
+    sqxtun v1.4h, v2.4s
+    sqxtun v1.2s, v2.2d
+    sqxtun2 v1.16b, v2.8h
+
+    fcvtxn v1.2s, v2.2d
+    fcvtxn2 v1.4s, v2.2d
+
+    frinta v1.2s, v2.2s
+    frinta v1.4s, v2.4s
+    frinta v1.2d, v2.2d
+    frintx v1.2s, v2.2s
+    frintx v1.4s, v2.4s
+    frintx v1.2d, v2.2d
+    fcvtnu v1.2s, v2.2s
+    fcvtnu v1.4s, v2.4s
+    fcvtnu v1.2d, v2.2d
+    fcvtmu v1.2s, v2.2s
+    fcvtmu v1.4s, v2.4s
+    fcvtmu v1.2d, v2.2d
+    fcvtau v1.2s, v2.2s
+    fcvtau v1.4s, v2.4s
+    fcvtau v1.2d, v2.2d
+    ucvtf v1.2s, v2.2s
+    ucvtf v1.4s, v2.4s
+    ucvtf v1.2d, v2.2d
+
+    not v1.8b, v2.8b
+    not v1.16b, v2.16b
+    rbit v1.8b, v2.8b
+    rbit v1.16b, v2.16b
+
+    fcmge v1.2s, v2.2s, #0.0
+    fcmge v1.2d, v2.2d, #0.0
+    fcmle v1.2s, v2.2s, #0.0
+    fcmle v1.2d, v2.2d, #0.0
+    fneg v1.2s, v2.2s
+    fneg v1.2d, v2.2d
+    frinti v1.2s, v2.2s
+    frinti v1.2d, v2.2d
+    fcvtpu v1.2s, v2.2s
+    fcvtpu v1.2d, v2.2d
+    fcvtzu v1.2s, v2.2s
+    fcvtzu v1.2d, v2.2d
+    ursqrte v1.2s, v2.2s
+    ursqrte v1.4s, v2.4s
+    frsqrte v1.2s, v2.2s
+    frsqrte v1.4s, v2.4s
+    frsqrte v1.2d, v2.2d
+    fsqrt v1.2s, v2.2s
+    fsqrt v1.4s, v2.4s
+    fsqrt v1.2d, v2.2d
+.size simd_2reg_misc, . - simd_2reg_misc
+
+simd_across_lanes:
+    saddlv h1, v1.8b
+    saddlv h1, v1.16b
+    saddlv d1, v1.4s
+
+    smaxv b1, v1.8b
+    smaxv b1, v1.16b
+    smaxv h1, v1.8h
+    smaxv s1, v1.4s
+    sminv b1, v1.8b
+    sminv b1, v1.16b
+    sminv h1, v1.8h
+    sminv s1, v1.4s
+
+    addv b1, v1.8b
+    addv b1, v1.16b
+    addv h1, v1.8h
+    addv s1, v1.4s
+
+    uaddlv h1, v1.8b
+    uaddlv h1, v1.16b
+    uaddlv d1, v1.4s
+
+    umaxv b1, v1.8b
+    umaxv b1, v1.16b
+    umaxv h1, v1.8h
+    umaxv s1, v1.4s
+    uminv b1, v1.8b
+    uminv b1, v1.16b
+    uminv h1, v1.8h
+    uminv s1, v1.4s
+
+    fmaxnmv h1, v1.8h
+    fmaxnmv s1, v1.4s
+    fmaxv h1, v1.8h
+    fmaxv s1, v1.4s
+    fminnmv h1, v1.8h
+    fminnmv s1, v1.4s
+    fminv h1, v1.8h
+    fminv s1, v1.4s
+.size simd_across_lanes, . - simd_across_lanes
+
+simd_3diff:
+    saddl v1.8h, v2.8b, v3.8b
+    saddl v1.4s, v2.4h, v3.4h
+    saddl v1.2d, v2.2s, v3.2s
+    saddl2 v1.8h, v2.16b, v3.16b
+
+    saddw v1.8h, v2.8h, v3.8b
+    saddw v1.4s, v2.4s, v3.4h
+    saddw v1.2d, v2.2d, v3.2s
+    saddw2 v1.8h, v2.8h, v3.16b
+
+    ssubl v1.8h, v2.8b, v3.8b
+    ssubl v1.4s, v2.4h, v3.4h
+    ssubl v1.2d, v2.2s, v3.2s
+    ssubl2 v1.8h, v2.16b, v3.16b
+
+    ssubw v1.8h, v2.8h, v3.8b
+    ssubw v1.4s, v2.4s, v3.4h
+    ssubw v1.2d, v2.2d, v3.2s
+    ssubw2 v1.8h, v2.8h, v3.16b
+
+    addhn v1.8b, v2.8h, v3.8h
+    addhn v1.4h, v2.4s, v3.4s
+    addhn v1.2s, v2.2d, v3.2d
+    addhn2 v1.16b, v2.8h, v3.8h
+
+    sabal v1.8h, v2.8b, v3.8b
+    sabal v1.4s, v2.4h, v3.4h
+    sabal v1.2d, v2.2s, v3.2s
+    sabal2 v1.8h, v2.16b, v3.16b
+
+    subhn v1.8b, v2.8h, v3.8h
+    subhn v1.4h, v2.4s, v3.4s
+    subhn v1.2s, v2.2d, v3.2d
+    subhn2 v1.16b, v2.8h, v3.8h
+
+    sabdl v1.8h, v2.8b, v3.8b
+    sabdl v1.4s, v2.4h, v3.4h
+    sabdl v1.2d, v2.2s, v3.2s
+    sabdl2 v1.8h, v2.16b, v3.16b
+
+    smlal v1.8h, v2.8b, v3.8b
+    smlal v1.4s, v2.4h, v3.4h
+    smlal v1.2d, v2.2s, v3.2s
+    smlal2 v1.8h, v2.16b, v3.16b
+
+    sqdmlal v1.4s, v2.4h, v3.4h
+    sqdmlal v1.2d, v2.2s, v3.2s
+    sqdmlal2 v1.4s, v2.8h, v3.8h
+
+    smlsl v1.8h, v2.8b, v3.8b
+    smlsl v1.4s, v2.4h, v3.4h
+    smlsl v1.2d, v2.2s, v3.2s
+    smlsl2 v1.8h, v2.16b, v3.16b
+
+    sqdmlsl v1.4s, v2.4h, v3.4h
+    sqdmlsl v1.2d, v2.2s, v3.2s
+    sqdmlsl2 v1.4s, v2.8h, v3.8h
+
+    smull v1.8h, v2.8b, v3.8b
+    smull v1.4s, v2.4h, v3.4h
+    smull v1.2d, v2.2s, v3.2s
+    smull2 v1.8h, v2.16b, v3.16b
+
+    sqdmull v1.4s, v2.4h, v3.4h
+    sqdmull v1.2d, v2.2s, v3.2s
+    sqdmull2 v1.4s, v2.8h, v3.8h
+
+    pmull v1.8h, v2.8b, v2.8b
+    pmull2 v1.8h, v2.16b, v3.16b
+
+    uaddl v1.8h, v2.8b, v3.8b
+    uaddl v1.4s, v2.4h, v3.4h
+    uaddl v1.2d, v2.2s, v3.2s
+    uaddl2 v1.8h, v2.16b, v3.16b
+
+    uaddw v1.8h, v2.8h, v3.8b
+    uaddw v1.4s, v2.4s, v3.4h
+    uaddw v1.2d, v2.2d, v3.2s
+    uaddw2 v1.8h, v2.8h, v3.16b
+
+    usubl v1.8h, v2.8b, v3.8b
+    usubl v1.4s, v2.4h, v3.4h
+    usubl v1.2d, v2.2s, v3.2s
+    usubl2 v1.8h, v2.16b, v3.16b
+
+    usubw v1.8h, v2.8h, v3.8b
+    usubw v1.4s, v2.4s, v3.4h
+    usubw v1.2d, v2.2d, v3.2s
+    usubw2 v1.8h, v2.8h, v3.16b
+
+    raddhn v1.8b, v2.8h, v3.8h
+    raddhn v1.4h, v2.4s, v3.4s
+    raddhn v1.2s, v2.2d, v3.2d
+    raddhn2 v1.16b, v2.8h, v3.8h
+
+    uabal v1.8h, v2.8b, v3.8b
+    uabal v1.4s, v2.4h, v3.4h
+    uabal v1.2d, v2.2s, v3.2s
+    uabal2 v1.8h, v2.16b, v3.16b
+
+    rsubhn v1.8b, v2.8h, v3.8h
+    rsubhn v1.4h, v2.4s, v3.4s
+    rsubhn v1.2s, v2.2d, v3.2d
+    rsubhn2 v1.16b, v2.8h, v3.8h
+
+    uabdl v1.8h, v2.8b, v3.8b
+    uabdl v1.4s, v2.4h, v3.4h
+    uabdl v1.2d, v2.2s, v3.2s
+    uabdl2 v1.8h, v2.16b, v3.16b
+
+    umull v1.8h, v2.8b, v3.8b
+    umull v1.4s, v2.4h, v3.4h
+    umull v1.2d, v2.2s, v3.2s
+    umull2 v1.8h, v2.16b, v3.16b
+.size simd_3diff, . - simd_3diff
+
+simd_3same:
+    shadd v1.8b, v2.8b, v3.8b
+    shadd v1.4s, v2.4s, v3.4s
+    sqadd v1.8b, v2.8b, v3.8b
+    sqadd v1.4s, v2.4s, v3.4s
+    srhadd v1.8b, v2.8b, v3.8b
+    srhadd v1.4s, v2.4s, v3.4s
+    shsub v1.8b, v2.8b, v3.8b
+    shsub v1.4s, v2.4s, v3.4s
+    sqsub v1.8b, v2.8b, v3.8b
+    sqsub v1.4s, v2.4s, v3.4s
+    cmgt v1.8b, v2.8b, v3.8b
+    cmgt v1.2d, v2.2d, v3.2d
+    cmge v1.8b, v2.8b, v3.8b
+    cmge v1.2d, v2.2d, v3.2d
+    sshl v1.8b, v2.8b, v3.8b
+    sshl v1.2d, v2.2d, v3.2d
+    sqshl v1.8b, v2.8b, v3.8b
+    sqshl v1.2d, v2.2d, v3.2d
+    srshl v1.8b, v2.8b, v3.8b
+    srshl v1.2d, v2.2d, v3.2d
+    sqrshl v1.8b, v2.8b, v3.8b
+    sqrshl v1.2d, v2.2d, v3.2d
+    smax v1.8b, v2.8b, v3.8b
+    smax v1.4s, v2.4s, v3.4s
+    smin v1.8b, v2.8b, v3.8b
+    smin v1.4s, v2.4s, v3.4s
+    sabd v1.16b, v2.16b, v3.16b
+    sabd v1.4s, v2.4s, v3.4s
+    saba v1.16b, v2.16b, v3.16b
+    saba v1.4s, v2.4s, v3.4s
+    add v1.16b, v2.16b, v3.16b
+    add v1.4s, v2.4s, v3.4s
+    cmtst v1.16b, v2.16b, v3.16b
+    cmtst v1.4s, v2.4s, v3.4s
+    mla v1.16b, v2.16b, v3.16b
+    mla v1.4s, v2.4s, v3.4s
+    mul v1.16b, v2.16b, v3.16b
+    mul v1.4s, v2.4s, v3.4s
+    smaxp v1.16b, v2.16b, v3.16b
+    smaxp v1.4s, v2.4s, v3.4s
+    sminp v1.16b, v2.16b, v3.16b
+    sminp v1.4s, v2.4s, v3.4s
+    sqdmulh v1.8h, v2.8h, v3.8h
+    sqdmulh v1.4s, v2.4s, v3.4s
+    addp v1.8h, v2.8h, v3.8h
+    addp v1.4s, v2.4s, v3.4s
+    fmaxnm v1.4s, v2.4s, v3.4s
+    fmaxnm v1.2d, v2.2d, v3.2d
+    fmla v1.4s, v2.4s, v3.4s
+    fmla v1.2d, v2.2d, v3.2d
+    fadd v1.4s, v2.4s, v3.4s
+    fadd v1.2d, v2.2d, v3.2d
+    fmulx v1.4s, v2.4s, v3.4s
+    fmulx v1.2d, v2.2d, v3.2d
+    fcmeq v1.4s, v2.4s, v3.4s
+    fcmeq v1.2d, v2.2d, v3.2d
+    fmax v1.4s, v2.4s, v3.4s
+    fmax v1.2d, v2.2d, v3.2d
+    frecps v1.4s, v2.4s, v3.4s
+    frecps v1.2d, v2.2d, v3.2d
+    and v1.8b, v2.8b, v3.8b
+    and v1.16b, v2.16b, v3.16b
+    bic v1.8b, v2.8b, v3.8b
+    bic v1.16b, v2.16b, v3.16b
+    fminnm v1.4s, v2.4s, v3.4s
+    fminnm v1.2d, v2.2d, v3.2d
+    fmls v1.4s, v2.4s, v3.4s
+    fmls v1.2d, v2.2d, v3.2d
+    fsub v1.4s, v2.4s, v3.4s
+    fsub v1.2d, v2.2d, v3.2d
+    fmin v1.4s, v2.4s, v3.4s
+    fmin v1.2d, v2.2d, v3.2d
+    frsqrts v1.4s, v2.4s, v3.4s
+    frsqrts v1.2d, v2.2d, v3.2d
+    orr v1.8b, v2.8b, v3.8b
+    orr v1.16b, v2.16b, v3.16b
+    orn v1.8b, v2.8b, v3.8b
+    orn v1.16b, v2.16b, v3.16b
+
+    uhadd v1.8b, v2.8b, v3.8b
+    uhadd v1.4s, v2.4s, v3.4s
+    uqadd v1.8b, v2.8b, v3.8b
+    uqadd v1.4s, v2.4s, v3.4s
+    urhadd v1.8b, v2.8b, v3.8b
+    urhadd v1.4s, v2.4s, v3.4s
+    uhsub v1.8b, v2.8b, v3.8b
+    uhsub v1.4s, v2.4s, v3.4s
+    uqsub v1.8b, v2.8b, v3.8b
+    uqsub v1.4s, v2.4s, v3.4s
+    cmhi v1.8b, v2.8b, v3.8b
+    cmhi v1.2d, v2.2d, v3.2d
+    cmhs v1.8b, v2.8b, v3.8b
+    cmhs v1.2d, v2.2d, v3.2d
+    ushl v1.8b, v2.8b, v3.8b
+    ushl v1.2d, v2.2d, v3.2d
+    uqshl v1.8b, v2.8b, v3.8b
+    uqshl v1.2d, v2.2d, v3.2d
+    urshl v1.8b, v2.8b, v3.8b
+    urshl v1.2d, v2.2d, v3.2d
+    uqrshl v1.8b, v2.8b, v3.8b
+    uqrshl v1.2d, v2.2d, v3.2d
+    umax v1.8b, v2.8b, v3.8b
+    umax v1.4s, v2.4s, v3.4s
+    umin v1.8b, v2.8b, v3.8b
+    umin v1.4s, v2.4s, v3.4s
+    uabd v1.16b, v2.16b, v3.16b
+    uabd v1.4s, v2.4s, v3.4s
+    uaba v1.16b, v2.16b, v3.16b
+    uaba v1.4s, v2.4s, v3.4s
+    sub v1.16b, v2.16b, v3.16b
+    sub v1.4s, v2.4s, v3.4s
+    cmeq v1.16b, v2.16b, v3.16b
+    cmeq v1.4s, v2.4s, v3.4s
+    mls v1.16b, v2.16b, v3.16b
+    mls v1.4s, v2.4s, v3.4s
+    pmul v1.16b, v2.16b, v3.16b
+    pmul v1.8b, v2.8b, v3.8b
+    umaxp v1.16b, v2.16b, v3.16b
+    umaxp v1.4s, v2.4s, v3.4s
+    uminp v1.16b, v2.16b, v3.16b
+    uminp v1.4s, v2.4s, v3.4s
+    sqrdmulh v1.8h, v2.8h, v3.8h
+    sqrdmulh v1.4s, v2.4s, v3.4s
+    fmaxnmp v1.4s, v2.4s, v3.4s
+    fmaxnmp v1.2d, v2.2d, v3.2d
+    faddp v1.4s, v2.4s, v3.4s
+    faddp v1.2d, v2.2d, v3.2d
+    fmul v1.4s, v2.4s, v3.4s
+    fmul v1.2d, v2.2d, v3.2d
+    fcmge v1.4s, v2.4s, v3.4s
+    fcmge v1.2d, v2.2d, v3.2d
+    facge v1.4s, v2.4s, v3.4s
+    facge v1.2d, v2.2d, v3.2d
+    fmaxp v1.4s, v2.4s, v3.4s
+    fmaxp v1.2d, v2.2d, v3.2d
+    fdiv v1.4s, v2.4s, v3.4s
+    fdiv v1.2d, v2.2d, v3.2d
+    eor v1.8b, v2.8b, v3.8b
+    eor v1.16b, v2.16b, v3.16b
+    bsl v1.8b, v2.8b, v3.8b
+    bsl v1.16b, v2.16b, v3.16b
+    fminnmp v1.4s, v2.4s, v3.4s
+    fminnmp v1.2d, v2.2d, v3.2d
+    fabd v1.4s, v2.4s, v3.4s
+    fabd v1.2d, v2.2d, v3.2d
+    fcmgt v1.4s, v2.4s, v3.4s
+    fcmgt v1.2d, v2.2d, v3.2d
+    facgt v1.4s, v2.4s, v3.4s
+    facgt v1.2d, v2.2d, v3.2d
+    fminp v1.4s, v2.4s, v3.4s
+    fminp v1.2d, v2.2d, v3.2d
+    bit v1.8b, v2.8b, v3.8b
+    bit v1.16b, v2.16b, v3.16b
+    bif v1.8b, v2.8b, v3.8b
+    bif v1.16b, v2.16b, v3.16b
+.size simd_3same, . - simd_3same

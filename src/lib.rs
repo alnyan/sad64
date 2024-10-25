@@ -13,7 +13,11 @@ mod format;
 #[cfg(feature = "std")]
 pub use format::{Formatter, NoopResolver, SimpleFormatter, SymbolResolver};
 
-pub use mnemonic::{Mnemonic, SimdMnemonic};
+pub use mnemonic::Mnemonic;
+
+#[cfg(feature = "simd")]
+pub use mnemonic::SimdMnemonic;
+
 pub use msr::SystemReg;
 pub use operand::{
     Barrier, BarrierDomain, BranchCondition, IndexMode, Operand, RegExtend, RegExtendWord, SysOp,

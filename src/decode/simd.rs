@@ -24,23 +24,10 @@ pub fn decode_simd(insn: u32) -> Option<Instruction> {
         "0?00 111 0? ?0?? ?? ? 0???10 ??????????" => decode_simd_permute(insn),
         "0?10 111 0? ?0?? ?? ? 0????0 ??????????" => decode_simd_extract(insn),
         "0??0 111 00 00?? ?? ? 0????1 ??????????" => decode_simd_copy(insn),
-
-        // Advanced SIMD 2-reg misc
-        "0??0 111 0? ?100 00 ? ????10 ??????????" => {
-            todo!()
-        }
-        // Advanced SIMD across lanes
-        "0??0 111 0? ?100 00 ? ????10 ??????????" => {
-            todo!()
-        }
-        // Advanced SIMD three different
-        "0??0 111 0? ?1?? ?? ? ????00 ??????????" => {
-            todo!()
-        }
-        // Advanced SIMD three same
-        "0??0 111 0? ?1?? ?? ? ?????1 ??????????" => {
-            todo!()
-        }
+        "0??0 111 0? ?100 00 ? ????10 ??????????" => decode_2reg_misc(insn),
+        "0??0 111 0? ?110 00 ? ????10 ??????????" => decode_across_lanes(insn),
+        "0??0 111 0? ?1?? ?? ? ????10 ??????????" => todo!(),
+        "0??0 111 0? ?1?? ?? ? ?????? ??????????" => decode_3diff_same(insn),
         // Advanced SIMD modified immediate
         "0??0 111 10 0000 ?? ? ?????1 ??????????" => {
             todo!()
@@ -662,6 +649,300 @@ fn decode_simd_copy(insn: u32) -> Option<Instruction> {
     })
 }
 
+#[bitmatch]
+fn decode_2reg_misc(insn: u32) -> Option<Instruction> {
+    #[bitmatch]
+    let "? Q U ????? ss ????? ooooo ?? NNNNN DDDDD" = insn;
+    let D = D as u8;
+    let N = N as u8;
+
+    enum Ty {
+        A, // <Vd>.<T>, <Vn>.<T>
+        B, // <Vd>.<Ta>, <Vn>.<Tb> (where Tb = Ta * 2 with lower size)
+        C, // <Vd>.<Ta>, <Vn>.<Tb> (where Tb = Ta with lower size)
+        D, // <Vd>.<Ta>, <Vn>.<Tb> (where Ta = Tb * 2 with lower size)
+        E, // <Vd>.<Ta>, <Vn>.<Tb> (where Ta = Tb with lower size)
+    }
+
+    let (ty, imm, min, max, sz, mnemonic) = match (U, s, o) {
+        (0, _, 0b00000) => (Ty::A, 0, 0, 2, s, SimdMnemonic::rev64),
+        (0, _, 0b00001) => (Ty::A, 0, 0, 0, s, SimdMnemonic::rev16),
+        (0, _, 0b00010) => (Ty::B, 0, 0, 2, s, SimdMnemonic::saddlp),
+        (0, _, 0b00011) => (Ty::A, 0, 0, 3, s, SimdMnemonic::suqadd),
+        (0, _, 0b00100) => (Ty::A, 0, 0, 2, s, SimdMnemonic::cls),
+        (0, _, 0b00101) => (Ty::A, 0, 0, 0, s, SimdMnemonic::cnt),
+        (0, _, 0b00110) => (Ty::B, 0, 0, 2, s, SimdMnemonic::sadalp),
+        (0, _, 0b00111) => (Ty::A, 0, 0, 3, s, SimdMnemonic::sqabs),
+        (0, _, 0b01000) => (Ty::A, 1, 0, 3, s, SimdMnemonic::cmgt),
+        (0, _, 0b01001) => (Ty::A, 1, 0, 3, s, SimdMnemonic::cmeq),
+        (0, _, 0b01010) => (Ty::A, 1, 0, 3, s, SimdMnemonic::cmlt),
+        (0, _, 0b01011) => (Ty::A, 0, 0, 3, s, SimdMnemonic::abs),
+        (0, _, 0b10010) if Q == 0 => (Ty::C, 0, 0, 2, s, SimdMnemonic::xtn),
+        (0, _, 0b10010) if Q == 1 => (Ty::D, 0, 0, 2, s, SimdMnemonic::xtn2),
+        (0, _, 0b10100) if Q == 0 => (Ty::C, 0, 0, 2, s, SimdMnemonic::sqxtn),
+        (0, _, 0b10100) if Q == 1 => (Ty::D, 0, 0, 2, s, SimdMnemonic::sqxtn2),
+        (0, 0 | 1, 0b10110) if Q == 0 => (Ty::C, 0, 0, 1, s + 1, SimdMnemonic::fcvtn),
+        (0, 0 | 1, 0b10110) if Q == 1 => (Ty::D, 0, 0, 1, s + 1, SimdMnemonic::fcvtn2),
+        (0, 0 | 1, 0b10111) if Q == 0 => (Ty::E, 0, 0, 1, s + 1, SimdMnemonic::fcvtl),
+        (0, 0 | 1, 0b10111) if Q == 1 => (Ty::B, 0, 0, 1, s + 1, SimdMnemonic::fcvtl2),
+        (0, 0 | 1, 0b11000) => (Ty::A, 0, 0, 1, s + 2, SimdMnemonic::frintn),
+        (0, 0 | 1, 0b11001) => (Ty::A, 0, 0, 1, s + 2, SimdMnemonic::frintm),
+        (0, 0 | 1, 0b11010) => (Ty::A, 0, 0, 1, s, SimdMnemonic::fcvtns),
+        (0, 0 | 1, 0b11011) => (Ty::A, 0, 0, 1, s, SimdMnemonic::fcvtms),
+        (0, 0 | 1, 0b11100) => (Ty::A, 0, 0, 1, s, SimdMnemonic::fcvtas),
+        (0, 0 | 1, 0b11101) => (Ty::A, 0, 0, 1, s, SimdMnemonic::scvtf),
+        (0, 2 | 3, 0b01100) => (Ty::A, 2, 2, 3, s, SimdMnemonic::fcmgt),
+        (0, 2 | 3, 0b01101) => (Ty::A, 2, 2, 3, s, SimdMnemonic::fcmeq),
+        (0, 2 | 3, 0b01110) => (Ty::A, 2, 2, 3, s, SimdMnemonic::fcmlt),
+        (0, 2 | 3, 0b01111) => (Ty::A, 0, 2, 3, s, SimdMnemonic::fabs),
+        (0, 2 | 3, 0b11000) => (Ty::A, 0, 2, 3, s, SimdMnemonic::frintp),
+        (0, 2 | 3, 0b11001) => (Ty::A, 0, 2, 3, s, SimdMnemonic::frintz),
+        (0, 2 | 3, 0b11010) => (Ty::A, 0, 2, 3, s, SimdMnemonic::fcvtps),
+        (0, 2 | 3, 0b11011) => (Ty::A, 0, 2, 3, s, SimdMnemonic::fcvtzs),
+        (0, 2 | 3, 0b11100) => (Ty::A, 0, 2, 3, s, SimdMnemonic::urecpe),
+        (0, 2 | 3, 0b11101) => (Ty::A, 0, 2, 3, s, SimdMnemonic::frecpe),
+        (1, _, 0b00000) => (Ty::A, 0, 0, 3, s, SimdMnemonic::rev32),
+        (1, _, 0b00010) => (Ty::B, 0, 0, 2, s, SimdMnemonic::uaddlp),
+        (1, _, 0b00011) => (Ty::A, 0, 0, 3, s, SimdMnemonic::usqadd),
+        (1, _, 0b00100) => (Ty::A, 0, 0, 2, s, SimdMnemonic::clz),
+        (1, _, 0b00110) => (Ty::B, 0, 0, 2, s, SimdMnemonic::uadalp),
+        (1, _, 0b00111) => (Ty::A, 0, 0, 3, s, SimdMnemonic::sqneg),
+        (1, _, 0b01000) => (Ty::A, 1, 0, 3, s, SimdMnemonic::cmge),
+        (1, _, 0b01001) => (Ty::A, 1, 0, 3, s, SimdMnemonic::cmle),
+        (1, _, 0b01011) => (Ty::A, 0, 0, 3, s, SimdMnemonic::neg),
+        (1, _, 0b10010) if Q == 0 => (Ty::C, 0, 0, 2, s, SimdMnemonic::sqxtun),
+        (1, _, 0b10010) if Q == 1 => (Ty::D, 0, 0, 2, s, SimdMnemonic::sqxtun2),
+        (1, 0 | 1, 0b10110) if Q == 0 => (Ty::C, 0, 0, 2, s + 1, SimdMnemonic::fcvtxn),
+        (1, 0 | 1, 0b10110) if Q == 1 => (Ty::D, 0, 0, 2, s + 1, SimdMnemonic::fcvtxn2),
+        (1, 0 | 1, 0b11000) => (Ty::A, 0, 0, 1, s + 2, SimdMnemonic::frinta),
+        (1, 0 | 1, 0b11001) => (Ty::A, 0, 0, 1, s + 2, SimdMnemonic::frintx),
+        (1, 0 | 1, 0b11010) => (Ty::A, 0, 0, 1, s + 2, SimdMnemonic::fcvtnu),
+        (1, 0 | 1, 0b11011) => (Ty::A, 0, 0, 1, s + 2, SimdMnemonic::fcvtmu),
+        (1, 0 | 1, 0b11100) => (Ty::A, 0, 0, 1, s + 2, SimdMnemonic::fcvtau),
+        (1, 0 | 1, 0b11101) => (Ty::A, 0, 0, 1, s + 2, SimdMnemonic::ucvtf),
+        (1, 0, 0b00101) => (Ty::A, 0, 0, 0, 0, SimdMnemonic::mvn),
+        (1, 1, 0b00101) => (Ty::A, 0, 1, 1, 0, SimdMnemonic::rbit),
+        (1, 2 | 3, 0b01100) => (Ty::A, 2, 2, 3, s, SimdMnemonic::fcmge),
+        (1, 2 | 3, 0b01101) => (Ty::A, 2, 2, 3, s, SimdMnemonic::fcmle),
+        (1, 2 | 3, 0b01111) => (Ty::A, 0, 2, 3, s, SimdMnemonic::fneg),
+        (1, 2 | 3, 0b11001) => (Ty::A, 0, 2, 3, s, SimdMnemonic::frinti),
+        (1, 2 | 3, 0b11010) => (Ty::A, 0, 2, 3, s, SimdMnemonic::fcvtpu),
+        (1, 2 | 3, 0b11011) => (Ty::A, 0, 2, 3, s, SimdMnemonic::fcvtzu),
+        (1, 2 | 3, 0b11100) => (Ty::A, 0, 2, 3, s, SimdMnemonic::ursqrte),
+        (1, 2 | 3, 0b11101) => (Ty::A, 0, 2, 3, s, SimdMnemonic::frsqrte),
+        (1, 2 | 3, 0b11111) => (Ty::A, 0, 2, 3, s, SimdMnemonic::fsqrt),
+        _ => todo!(),
+    };
+
+    if s < min || s > max {
+        return None;
+    }
+
+    let (op0, op1) = match ty {
+        Ty::A => (decode_vt(sz, Q, D)?, decode_vt(sz, Q, N)?),
+        Ty::B => (decode_vt(sz + 1, Q, D)?, decode_vt(sz, Q, N)?),
+        Ty::C => (decode_vt(sz, 0, D)?, decode_vt(sz + 1, 1, N)?),
+        Ty::D => (decode_vt(sz, Q, D)?, decode_vt(sz + 1, Q, N)?),
+        Ty::E => (decode_vt(sz + 1, 1, D)?, decode_vt(sz, 0, N)?),
+    };
+    let op2 = match imm {
+        0 => None,
+        1 => Some(Operand::DecImm(0)),
+        2 => Some(Operand::FpImm(0.0)),
+        _ => unreachable!(),
+    };
+
+    Some(Instruction {
+        mnemonic: Mnemonic::Simd(mnemonic),
+        operands: [Some(op0), Some(op1), op2, None],
+    })
+}
+
+#[bitmatch]
+fn decode_across_lanes(insn: u32) -> Option<Instruction> {
+    #[bitmatch]
+    let "? Q U ????? ss ????? ooooo ?? NNNNN DDDDD" = insn;
+
+    let (s0, s1, mnemonic) = match (U, s, o) {
+        (0, _, 0b00011) => (s + 1, s, SimdMnemonic::saddlv),
+        (0, _, 0b01010) => (s, s, SimdMnemonic::smaxv),
+        (0, _, 0b11010) => (s, s, SimdMnemonic::sminv),
+        (0, _, 0b11011) => (s, s, SimdMnemonic::addv),
+        (1, _, 0b00011) => (s + 1, s, SimdMnemonic::uaddlv),
+        (1, _, 0b01010) => (s, s, SimdMnemonic::umaxv),
+        (1, _, 0b11010) => (s, s, SimdMnemonic::uminv),
+        (_, 0 | 1, 0b01100) => (U + 1, U + 1, SimdMnemonic::fmaxnmv),
+        (_, 0 | 1, 0b01111) => (U + 1, U + 1, SimdMnemonic::fmaxv),
+        (_, 2 | 3, 0b01100) => (U + 1, U + 1, SimdMnemonic::fminnmv),
+        (_, 2 | 3, 0b01111) => (U + 1, U + 1, SimdMnemonic::fminv),
+        _ => return None,
+    };
+
+    let Rd = make_operand(0, s0, D as _)?;
+    let Rn = decode_vt(s1, Q, N as _)?;
+
+    Some(Instruction {
+        mnemonic: Mnemonic::Simd(mnemonic),
+        operands: [Some(Rd), Some(Rn), None, None],
+    })
+}
+
+#[bitmatch]
+fn decode_3diff_same(insn: u32) -> Option<Instruction> {
+    // 0 Q U 01110 ss 1 MMMMM oooo 00 NNNNN DDDDD
+    // 0 Q U 01110 ss 1 MMMMM oooo o1 NNNNN DDDDD
+    #[bitmatch]
+    let "? Q U ????? ss ? MMMMM oooooq NNNNN DDDDD" = insn;
+
+    let (s0, s1, s2, q0, q1, q2, mnemonic) = match (U, s, o, q) {
+        // !U, !q
+        (0, _, 0b00000, 0) if Q == 0 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::saddl),
+        (0, _, 0b00000, 0) if Q == 1 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::saddl2),
+        (0, _, 0b00010, 0) if Q == 0 => (s + 1, s + 1, s, 1, 1, Q, SimdMnemonic::saddw),
+        (0, _, 0b00010, 0) if Q == 1 => (s + 1, s + 1, s, 1, 1, Q, SimdMnemonic::saddw2),
+        (0, _, 0b00100, 0) if Q == 0 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::ssubl),
+        (0, _, 0b00100, 0) if Q == 1 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::ssubl2),
+        (0, _, 0b00110, 0) if Q == 0 => (s + 1, s + 1, s, 1, 1, Q, SimdMnemonic::ssubw),
+        (0, _, 0b00110, 0) if Q == 1 => (s + 1, s + 1, s, 1, 1, Q, SimdMnemonic::ssubw2),
+        (0, _, 0b01000, 0) if Q == 0 => (s, s + 1, s + 1, Q, 1, 1, SimdMnemonic::addhn),
+        (0, _, 0b01000, 0) if Q == 1 => (s, s + 1, s + 1, Q, 1, 1, SimdMnemonic::addhn2),
+        (0, _, 0b01010, 0) if Q == 0 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::sabal),
+        (0, _, 0b01010, 0) if Q == 1 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::sabal2),
+        (0, _, 0b01100, 0) if Q == 0 => (s, s + 1, s + 1, Q, 1, 1, SimdMnemonic::subhn),
+        (0, _, 0b01100, 0) if Q == 1 => (s, s + 1, s + 1, Q, 1, 1, SimdMnemonic::subhn2),
+        (0, _, 0b01110, 0) if Q == 0 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::sabdl),
+        (0, _, 0b01110, 0) if Q == 1 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::sabdl2),
+        (0, _, 0b10000, 0) if Q == 0 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::smlal),
+        (0, _, 0b10000, 0) if Q == 1 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::smlal2),
+        (0, _, 0b10010, 0) if Q == 0 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::sqdmlal),
+        (0, _, 0b10010, 0) if Q == 1 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::sqdmlal2),
+        (0, _, 0b10100, 0) if Q == 0 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::smlsl),
+        (0, _, 0b10100, 0) if Q == 1 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::smlsl2),
+        (0, _, 0b10110, 0) if Q == 0 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::sqdmlsl),
+        (0, _, 0b10110, 0) if Q == 1 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::sqdmlsl2),
+        (0, _, 0b11000, 0) if Q == 0 => (s + 1, s, s, Q, Q, Q, SimdMnemonic::smull),
+        (0, _, 0b11000, 0) if Q == 1 => (s + 1, s, s, Q, Q, Q, SimdMnemonic::smull2),
+        (0, _, 0b11010, 0) if Q == 0 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::sqdmull),
+        (0, _, 0b11010, 0) if Q == 1 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::sqdmull2),
+        (0, _, 0b11100, 0) if Q == 0 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::pmull),
+        (0, _, 0b11100, 0) if Q == 1 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::pmull2),
+        // U, !q
+        (1, _, 0b00000, 0) if Q == 0 => (s, s, s, Q, Q, Q, SimdMnemonic::uaddl),
+        (1, _, 0b00000, 0) if Q == 1 => (s, s, s, Q, Q, Q, SimdMnemonic::uaddl2),
+        (1, _, 0b00010, 0) if Q == 0 => (s + 1, s + 1, s, 1, 1, Q, SimdMnemonic::uaddw),
+        (1, _, 0b00010, 0) if Q == 1 => (s + 1, s + 1, s, 1, 1, Q, SimdMnemonic::uaddw2),
+        (1, _, 0b00100, 0) if Q == 0 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::usubl),
+        (1, _, 0b00100, 0) if Q == 1 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::usubl2),
+        (1, _, 0b00110, 0) if Q == 0 => (s + 1, s + 1, s, 1, 1, Q, SimdMnemonic::usubw),
+        (1, _, 0b00110, 0) if Q == 1 => (s + 1, s + 1, s, 1, 1, Q, SimdMnemonic::usubw2),
+        (1, _, 0b01000, 0) if Q == 0 => (s, s + 1, s + 1, Q, 1, 1, SimdMnemonic::raddhn),
+        (1, _, 0b01000, 0) if Q == 1 => (s, s + 1, s + 1, Q, 1, 1, SimdMnemonic::raddhn2),
+        (1, _, 0b01010, 0) if Q == 0 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::uabal),
+        (1, _, 0b01010, 0) if Q == 1 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::uabal2),
+        (1, _, 0b01100, 0) if Q == 0 => (s, s + 1, s + 1, Q, 1, 1, SimdMnemonic::rsubhn),
+        (1, _, 0b01100, 0) if Q == 1 => (s, s + 1, s + 1, Q, 1, 1, SimdMnemonic::rsubhn2),
+        (1, _, 0b01110, 0) if Q == 0 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::uabdl),
+        (1, _, 0b01110, 0) if Q == 1 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::uabdl2),
+        (1, _, 0b10000, 0) if Q == 0 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::umlal),
+        (1, _, 0b10000, 0) if Q == 1 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::umlal2),
+        (1, _, 0b10100, 0) if Q == 0 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::umlsl),
+        (1, _, 0b10100, 0) if Q == 1 => (s + 1, s, s, 1, Q, Q, SimdMnemonic::umlsl2),
+        (1, _, 0b11000, 0) if Q == 0 => (s + 1, s, s, Q, Q, Q, SimdMnemonic::umull),
+        (1, _, 0b11000, 0) if Q == 1 => (s + 1, s, s, Q, Q, Q, SimdMnemonic::umull2),
+        // !U, q
+        (0, _, 0b00000, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::shadd),
+        (0, _, 0b00001, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::sqadd),
+        (0, _, 0b00010, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::srhadd),
+        (0, _, 0b00100, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::shsub),
+        (0, _, 0b00101, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::sqsub),
+        (0, _, 0b00110, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::cmgt),
+        (0, _, 0b00111, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::cmge),
+        (0, _, 0b01000, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::sshl),
+        (0, _, 0b01001, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::sqshl),
+        (0, _, 0b01010, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::srshl),
+        (0, _, 0b01011, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::sqrshl),
+        (0, _, 0b01100, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::smax),
+        (0, _, 0b01101, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::smin),
+        (0, _, 0b01110, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::sabd),
+        (0, _, 0b01111, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::saba),
+        (0, _, 0b10000, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::add),
+        (0, _, 0b10001, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::cmtst),
+        (0, _, 0b10010, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::mla),
+        (0, _, 0b10011, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::mul),
+        (0, _, 0b10100, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::smaxp),
+        (0, _, 0b10101, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::sminp),
+        (0, _, 0b10110, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::sqdmulh),
+        (0, _, 0b10111, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::addp),
+        (0, 0 | 1, 0b11000, 1) => (s + 2, s + 2, s + 2, Q, Q, Q, SimdMnemonic::fmaxnm),
+        (0, 0 | 1, 0b11001, 1) => (s + 2, s + 2, s + 2, Q, Q, Q, SimdMnemonic::fmla),
+        (0, 0 | 1, 0b11010, 1) => (s + 2, s + 2, s + 2, Q, Q, Q, SimdMnemonic::fadd),
+        (0, 0 | 1, 0b11011, 1) => (s + 2, s + 2, s + 2, Q, Q, Q, SimdMnemonic::fmulx),
+        (0, 0 | 1, 0b11100, 1) => (s + 2, s + 2, s + 2, Q, Q, Q, SimdMnemonic::fcmeq),
+        (0, 0 | 1, 0b11110, 1) => (s + 2, s + 2, s + 2, Q, Q, Q, SimdMnemonic::fmax),
+        (0, 0 | 1, 0b11111, 1) => (s + 2, s + 2, s + 2, Q, Q, Q, SimdMnemonic::frecps),
+        (0, 0, 0b00011, 1) => (0, 0, 0, Q, Q, Q, SimdMnemonic::and),
+        (0, 1, 0b00011, 1) => (0, 0, 0, Q, Q, Q, SimdMnemonic::bic),
+        (0, 2 | 3, 0b11000, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::fminnm),
+        (0, 2 | 3, 0b11001, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::fmls),
+        (0, 2 | 3, 0b11010, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::fsub),
+        (0, 2 | 3, 0b11110, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::fmin),
+        (0, 2 | 3, 0b11111, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::frsqrts),
+        (0, 2, 0b00011, 1) => (0, 0, 0, Q, Q, Q, SimdMnemonic::orr),
+        (0, 3, 0b00011, 1) => (0, 0, 0, Q, Q, Q, SimdMnemonic::orn),
+        // U, q
+        (1, _, 0b00000, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::uhadd),
+        (1, _, 0b00001, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::uqadd),
+        (1, _, 0b00010, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::urhadd),
+        (1, _, 0b00100, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::uhsub),
+        (1, _, 0b00101, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::uqsub),
+        (1, _, 0b00110, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::cmhi),
+        (1, _, 0b00111, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::cmhs),
+        (1, _, 0b01000, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::ushl),
+        (1, _, 0b01001, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::uqshl),
+        (1, _, 0b01010, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::urshl),
+        (1, _, 0b01011, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::uqrshl),
+        (1, _, 0b01100, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::umax),
+        (1, _, 0b01101, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::umin),
+        (1, _, 0b01110, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::uabd),
+        (1, _, 0b01111, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::uaba),
+        (1, _, 0b10000, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::sub),
+        (1, _, 0b10001, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::cmeq),
+        (1, _, 0b10010, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::mls),
+        (1, _, 0b10011, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::pmul),
+        (1, _, 0b10100, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::umaxp),
+        (1, _, 0b10101, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::uminp),
+        (1, _, 0b10110, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::sqrdmulh),
+
+        (1, 0 | 1, 0b11000, 1) => (s + 2, s + 2, s + 2, Q, Q, Q, SimdMnemonic::fmaxnmp),
+        (1, 0 | 1, 0b11010, 1) => (s + 2, s + 2, s + 2, Q, Q, Q, SimdMnemonic::faddp),
+        (1, 0 | 1, 0b11011, 1) => (s + 2, s + 2, s + 2, Q, Q, Q, SimdMnemonic::fmul),
+        (1, 0 | 1, 0b11100, 1) => (s + 2, s + 2, s + 2, Q, Q, Q, SimdMnemonic::fcmge),
+        (1, 0 | 1, 0b11101, 1) => (s + 2, s + 2, s + 2, Q, Q, Q, SimdMnemonic::facge),
+        (1, 0 | 1, 0b11110, 1) => (s + 2, s + 2, s + 2, Q, Q, Q, SimdMnemonic::fmaxp),
+        (1, 0 | 1, 0b11111, 1) => (s + 2, s + 2, s + 2, Q, Q, Q, SimdMnemonic::fdiv),
+        (1, 0, 0b00011, 1) => (0, 0, 0, Q, Q, Q, SimdMnemonic::eor),
+        (1, 1, 0b00011, 1) => (0, 0, 0, Q, Q, Q, SimdMnemonic::bsl),
+        (1, 2 | 3, 0b11000, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::fminnmp),
+        (1, 2 | 3, 0b11010, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::fabd),
+        (1, 2 | 3, 0b11100, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::fcmgt),
+        (1, 2 | 3, 0b11101, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::facgt),
+        (1, 2 | 3, 0b11110, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::fminp),
+        (1, 2, 0b00011, 1) => (0, 0, 0, Q, Q, Q, SimdMnemonic::bit),
+        (1, 3, 0b00011, 1) => (0, 0, 0, Q, Q, Q, SimdMnemonic::bif),
+
+        _ => return None,
+    };
+
+    let Rd = decode_vt(s0, q0, D as _)?;
+    let Rn = decode_vt(s1, q1, N as _)?;
+    let Rm = decode_vt(s2, q2, M as _)?;
+
+    Some(Instruction {
+        mnemonic: Mnemonic::Simd(mnemonic),
+        operands: [Some(Rd), Some(Rn), Some(Rm), None],
+    })
+}
+
 fn decode_imm5_vtsi(size: u32, i: u32, R: u8) -> Option<Operand> {
     let (op, index): (fn(_) -> _, _) = match size {
         0 => (VectorSingle::b, i >> 0),
@@ -681,6 +962,7 @@ fn decode_vt(size: u32, Q: u32, R: u8) -> Option<Operand> {
         (1, 1) => VectorMulti::v8h,
         (2, 0) => VectorMulti::v2s,
         (2, 1) => VectorMulti::v4s,
+        (3, 0) => VectorMulti::v1d,
         (3, 1) => VectorMulti::v2d,
         _ => return None,
     };

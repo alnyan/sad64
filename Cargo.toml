@@ -14,5 +14,6 @@ elf = "0.7.4"
 rangemap = "1.5.1"
 
 [features]
-default = ["std"]
+default = ["std", "simd"]
 std = []
+simd = []

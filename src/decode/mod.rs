@@ -6,6 +6,8 @@ mod branch;
 mod data_reg;
 mod imm;
 mod ldst;
+
+#[cfg(feature = "simd")]
 mod simd;
 
 #[bitmatch]
@@ -30,8 +32,14 @@ pub(super) fn decode_inner(insn: u32) -> Option<Instruction> {
         "?1?0" => ldst::decode_load_store(insn),
         // Data processing - register
         "?101" => data_reg::decode_data_reg(insn),
+        #[cfg(feature = "simd")]
         // Data processing - SIMD and floating point
         "?111" => simd::decode_simd(insn),
+        #[cfg(not(feature = "simd"))]
+        "?111" => Some(Instruction {
+            mnemonic: Mnemonic::Simd(insn),
+            operands: [None, None, None, None],
+        }),
         _ => None,
     }
 }
