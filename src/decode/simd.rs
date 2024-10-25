@@ -28,18 +28,9 @@ pub fn decode_simd(insn: u32) -> Option<Instruction> {
         "0??0 111 0? ?110 00 ? ????10 ??????????" => decode_across_lanes(insn),
         "0??0 111 0? ?1?? ?? ? ????10 ??????????" => todo!(),
         "0??0 111 0? ?1?? ?? ? ?????? ??????????" => decode_3diff_same(insn),
-        // Advanced SIMD modified immediate
-        "0??0 111 10 0000 ?? ? ?????1 ??????????" => {
-            todo!()
-        }
-        // Advanced SIMD shifted by immediate
-        "0??0 111 10 ???? ?? ? ?????1 ??????????" => {
-            todo!()
-        }
-        // Advanced SIMD vector x indexed element
-        "0??0 111 1? ???? ?? ? ?????0 ??????????" => {
-            todo!()
-        }
+        "0??0 111 10 0000 ?? ? ?????1 ??????????" => decode_simd_modified_imm(insn),
+        "0??0 111 10 ???? ?? ? ?????1 ??????????" => decode_simd_shifted_imm(insn),
+        "0??0 111 1? ???? ?? ? ?????0 ??????????" => decode_simd_vector_x_index(insn),
         // Conversion between float and fixed
         "?0?1 111 0? ?0?? ?? ? 000000 ??????????" => {
             todo!()
@@ -912,7 +903,6 @@ fn decode_3diff_same(insn: u32) -> Option<Instruction> {
         (1, _, 0b10100, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::umaxp),
         (1, _, 0b10101, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::uminp),
         (1, _, 0b10110, 1) => (s, s, s, Q, Q, Q, SimdMnemonic::sqrdmulh),
-
         (1, 0 | 1, 0b11000, 1) => (s + 2, s + 2, s + 2, Q, Q, Q, SimdMnemonic::fmaxnmp),
         (1, 0 | 1, 0b11010, 1) => (s + 2, s + 2, s + 2, Q, Q, Q, SimdMnemonic::faddp),
         (1, 0 | 1, 0b11011, 1) => (s + 2, s + 2, s + 2, Q, Q, Q, SimdMnemonic::fmul),
@@ -936,6 +926,242 @@ fn decode_3diff_same(insn: u32) -> Option<Instruction> {
     let Rd = decode_vt(s0, q0, D as _)?;
     let Rn = decode_vt(s1, q1, N as _)?;
     let Rm = decode_vt(s2, q2, M as _)?;
+
+    Some(Instruction {
+        mnemonic: Mnemonic::Simd(mnemonic),
+        operands: [Some(Rd), Some(Rn), Some(Rm), None],
+    })
+}
+
+#[bitmatch]
+fn decode_simd_modified_imm(insn: u32) -> Option<Instruction> {
+    #[bitmatch]
+    let "? Q o ?????????? a b c CCCC O ? d e f g h DDDDD" = insn;
+
+    if C == 0b1111 && O == 0 {
+        if o == 1 && Q != 1 {
+            return None;
+        }
+
+        let B = (!b) & 1;
+        let exp = ((B << 2) | (c << 1) | d) - 3;
+        let mantissa = (16 + ((e << 3) | (f << 2) | (g << 1) | h)) / 16;
+        let S = match a != 0 {
+            false => 1.0,
+            true => -1.0,
+        };
+        let value = S * (exp as f64).exp2() * (mantissa as f64);
+        let Rd = decode_vt(o + 2, Q, D as _)?;
+
+        return Some(Instruction {
+            mnemonic: Mnemonic::Simd(SimdMnemonic::fmov),
+            operands: [Some(Rd), Some(Operand::FpImm(value)), None, None],
+        });
+    }
+
+    let (scalar, size, imm8, msl, mnemonic) = match (Q, o, C, O) {
+        // movi 32
+        (_, 0, _, 0) if C & 0b1001 == 0b0000 => (0, 2, 1, 0, SimdMnemonic::movi),
+        // orr 32
+        (_, 0, _, 0) if C & 0b1001 == 0b0001 => (0, 2, 1, 0, SimdMnemonic::orr),
+        // movi 16
+        (_, 0, _, 0) if C & 0b1101 == 0b1000 => (0, 1, 1, 0, SimdMnemonic::movi),
+        // orr 16
+        (_, 0, _, 0) if C & 0b1101 == 0b1001 => (0, 1, 1, 0, SimdMnemonic::orr),
+        // movi 32 shifting
+        (_, 0, _, 0) if C & 0b1110 == 0b1100 => (0, 2, 1, 1, SimdMnemonic::movi),
+        // movi 8
+        (_, 0, 0b1110, 0) => (0, 0, 1, 0, SimdMnemonic::movi),
+        // mvni 32
+        (_, 1, _, 0) if C & 0b1001 == 0b0000 => (0, 2, 1, 0, SimdMnemonic::mvni),
+        // bic 32
+        (_, 1, _, 0) if C & 0b1001 == 0b0001 => (0, 2, 1, 0, SimdMnemonic::bic),
+        // mvni 16
+        (_, 1, _, 0) if C & 0b1101 == 0b1000 => (0, 1, 1, 0, SimdMnemonic::mvni),
+        // bic 16
+        (_, 1, _, 0) if C & 0b1101 == 0b1001 => (0, 1, 1, 0, SimdMnemonic::bic),
+        // mvni 32 shifting
+        (_, 1, _, 0) if C & 0b1110 == 0b1100 => (0, 2, 1, 1, SimdMnemonic::mvni),
+        // movi 64 scalar
+        (0, 1, 0b1110, 0) => (1, 3, 0, 0, SimdMnemonic::movi),
+        // movi 64 vector
+        (1, 1, 0b1110, 0) => (0, 3, 0, 0, SimdMnemonic::movi),
+
+        _ => return None,
+    };
+
+    let Rd = match scalar != 0 {
+        false => decode_vt(size, Q, D as _)?,
+        true => make_operand(0, size, D as _)?,
+    };
+    let imm = match imm8 != 0 {
+        false => {
+            let a = replicate_bit(a as _, 8) as u64;
+            let b = replicate_bit(a as _, 8) as u64;
+            let c = replicate_bit(a as _, 8) as u64;
+            let d = replicate_bit(a as _, 8) as u64;
+            let e = replicate_bit(a as _, 8) as u64;
+            let f = replicate_bit(a as _, 8) as u64;
+            let g = replicate_bit(a as _, 8) as u64;
+            let h = replicate_bit(a as _, 8) as u64;
+
+            h | (g << 8) | (f << 16) | (e << 24) | (d << 32) | (c << 40) | (b << 48) | (a << 56)
+        }
+        true => {
+            (h | (g << 1) | (f << 2) | (e << 3) | (d << 4) | (c << 5) | (b << 6) | (a << 7)) as u64
+        }
+    };
+
+    let shift = match size {
+        0 => 0,
+        1 => ((C >> 1) & 1) * 8,
+        2 => ((C >> 1) & 3) * 8,
+        3 => 0,
+        _ => unreachable!(),
+    };
+
+    let shift = if msl != 0 {
+        (shift != 0).then_some(Operand::Msl(shift as _))
+    } else {
+        (shift != 0).then_some(Operand::Lsl(shift as _))
+    };
+
+    Some(Instruction {
+        mnemonic: Mnemonic::Simd(mnemonic),
+        operands: [Some(Rd), Some(Operand::Imm(imm)), shift, None],
+    })
+}
+
+#[bitmatch]
+fn decode_simd_shifted_imm(insn: u32) -> Option<Instruction> {
+    #[bitmatch]
+    let "? Q U ?????? hhhh bbb ooooo ? NNNNN DDDDD" = insn;
+
+    let (s, smode, mnemonic) = match (U, o) {
+        (0, 0b00000) => (0, 0, SimdMnemonic::sshr),
+        (0, 0b00010) => (0, 0, SimdMnemonic::ssra),
+        (0, 0b00100) => (0, 0, SimdMnemonic::srshr),
+        (0, 0b00110) => (0, 0, SimdMnemonic::srsra),
+        (0, 0b01010) => (0, 1, SimdMnemonic::shl),
+        (0, 0b01110) => (0, 1, SimdMnemonic::sqshl),
+        (0, 0b10000) if Q == 0 => (1, 0, SimdMnemonic::shrn),
+        (0, 0b10000) if Q == 1 => (1, 0, SimdMnemonic::shrn2),
+        (0, 0b10001) if Q == 0 => (1, 0, SimdMnemonic::rshrn),
+        (0, 0b10001) if Q == 1 => (1, 0, SimdMnemonic::rshrn2),
+        (0, 0b10010) if Q == 0 => (1, 0, SimdMnemonic::sqshrn),
+        (0, 0b10010) if Q == 1 => (1, 0, SimdMnemonic::sqshrn2),
+        (0, 0b10011) if Q == 0 => (2, 0, SimdMnemonic::sqrshrn),
+        (0, 0b10011) if Q == 1 => (2, 0, SimdMnemonic::sqrshrn2),
+        (0, 0b10100) if Q == 0 => (2, 1, SimdMnemonic::sshll),
+        (0, 0b10100) if Q == 1 => (2, 1, SimdMnemonic::sshll2),
+        (0, 0b11100) => (0, 0, SimdMnemonic::scvtf),
+        (0, 0b11111) => (0, 0, SimdMnemonic::fcvtzs),
+
+        (1, 0b00000) => (0, 0, SimdMnemonic::ushr),
+        (1, 0b00010) => (0, 0, SimdMnemonic::usra),
+        (1, 0b00100) => (0, 0, SimdMnemonic::urshr),
+        (1, 0b00110) => (0, 0, SimdMnemonic::ursra),
+        (1, 0b01000) => (0, 0, SimdMnemonic::sri),
+        (1, 0b01010) => (0, 1, SimdMnemonic::sli),
+        (1, 0b01100) => (0, 1, SimdMnemonic::sqshlu),
+        (1, 0b01110) => (0, 1, SimdMnemonic::uqshl),
+        (1, 0b10000) if Q == 0 => (1, 0, SimdMnemonic::sqshrun),
+        (1, 0b10000) if Q == 1 => (1, 0, SimdMnemonic::sqshrun2),
+        (1, 0b10001) if Q == 0 => (1, 0, SimdMnemonic::sqrshrun),
+        (1, 0b10001) if Q == 1 => (1, 0, SimdMnemonic::sqrshrun2),
+        (1, 0b10010) if Q == 0 => (1, 0, SimdMnemonic::uqshrn),
+        (1, 0b10010) if Q == 1 => (1, 0, SimdMnemonic::uqshrn2),
+        (1, 0b10011) if Q == 0 => (1, 0, SimdMnemonic::uqrshrn),
+        (1, 0b10011) if Q == 1 => (1, 0, SimdMnemonic::uqrshrn2),
+        (1, 0b10100) if Q == 0 => (2, 1, SimdMnemonic::ushll),
+        (1, 0b10100) if Q == 1 => (2, 1, SimdMnemonic::ushll2),
+        (1, 0b11100) => (0, 0, SimdMnemonic::ucvtf),
+        (1, 0b11111) => (0, 0, SimdMnemonic::fcvtzu),
+
+        _ => todo!(),
+    };
+
+    let sz = 31 - h.leading_zeros();
+    let (s0, s1, q0, q1) = match s {
+        0 => (sz, sz, Q, Q),
+        1 => (sz, sz + 1, Q, 1),
+        2 => (sz + 1, sz, 1, Q),
+        _ => unreachable!(),
+    };
+    let imm = (h << 3) | b;
+    let imm = match (sz, smode) {
+        (0, 0) => 16 - imm,
+        (1, 0) => 32 - imm,
+        (2, 0) => 64 - imm,
+        (3, 0) => 128 - imm,
+        (0, 1) => imm - 8,
+        (1, 1) => imm - 16,
+        (2, 1) => imm - 32,
+        (3, 1) => imm - 64,
+        _ => todo!(),
+    };
+    let Rd = decode_vt(s0, q0, D as _)?;
+    let Rn = decode_vt(s1, q1, N as _)?;
+
+    Some(Instruction {
+        mnemonic: Mnemonic::Simd(mnemonic),
+        operands: [Some(Rd), Some(Rn), Some(Operand::Imm(imm as _)), None],
+    })
+}
+
+#[bitmatch]
+fn decode_simd_vector_x_index(insn: u32) -> Option<Instruction> {
+    #[bitmatch]
+    let "? Q U ????? ss L m MMMM oooo H ? NNNNN DDDDD" = insn;
+
+    enum Ty {
+        A,
+        B,
+    }
+
+    let (ty, mnemonic) = match (U, s, o) {
+        (0, _, 0b0010) if Q == 0 => (Ty::A, SimdMnemonic::smlal),
+        (0, _, 0b0010) if Q == 1 => (Ty::A, SimdMnemonic::smlal2),
+        (0, _, 0b0011) if Q == 0 => (Ty::A, SimdMnemonic::sqdmlal),
+        (0, _, 0b0011) if Q == 1 => (Ty::A, SimdMnemonic::sqdmlal2),
+        (0, _, 0b0110) if Q == 0 => (Ty::A, SimdMnemonic::smlsl),
+        (0, _, 0b0110) if Q == 1 => (Ty::A, SimdMnemonic::smlsl2),
+        (0, _, 0b0111) if Q == 0 => (Ty::A, SimdMnemonic::sqdmlsl),
+        (0, _, 0b0111) if Q == 1 => (Ty::A, SimdMnemonic::sqdmlsl2),
+        (0, _, 0b1000) => (Ty::B, SimdMnemonic::mul),
+        (0, _, 0b1010) if Q == 0 => (Ty::A, SimdMnemonic::smull),
+        (0, _, 0b1010) if Q == 1 => (Ty::A, SimdMnemonic::smull2),
+        (0, _, 0b1011) if Q == 0 => (Ty::A, SimdMnemonic::sqdmull),
+        (0, _, 0b1011) if Q == 1 => (Ty::A, SimdMnemonic::sqdmull2),
+        (0, _, 0b1100) => (Ty::B, SimdMnemonic::sqdmulh),
+        (0, _, 0b1101) => (Ty::B, SimdMnemonic::sqrdmulh),
+
+        (0, 2 | 3, 0b0001) => (Ty::B, SimdMnemonic::fmla),
+        (0, 2 | 3, 0b0101) => (Ty::B, SimdMnemonic::fmls),
+        (0, 2 | 3, 0b1001) => (Ty::B, SimdMnemonic::fmul),
+
+        (1, _, 0b0000) => (Ty::B, SimdMnemonic::mla),
+        (1, _, 0b0010) if Q == 0 => (Ty::A, SimdMnemonic::umlal),
+        (1, _, 0b0010) if Q == 1 => (Ty::A, SimdMnemonic::umlal2),
+        (1, _, 0b0100) => (Ty::B, SimdMnemonic::mls),
+        (1, _, 0b0110) if Q == 0 => (Ty::A, SimdMnemonic::umlsl),
+        (1, _, 0b0110) if Q == 1 => (Ty::A, SimdMnemonic::umlsl2),
+        (1, _, 0b1010) if Q == 0 => (Ty::A, SimdMnemonic::umull),
+        (1, _, 0b1010) if Q == 1 => (Ty::A, SimdMnemonic::umull2),
+        (1, _, 0b1001) => (Ty::B, SimdMnemonic::fmulx),
+
+        _ => return None,
+    };
+
+    let index = (H << 3) | (L << 2) | (m << 1);
+    let (s0, s1, s2, q0, q1) = match ty {
+        Ty::A => (s + 1, s, s, 1, Q),
+        Ty::B => (s, s, s, Q, Q),
+    };
+
+    let Rd = decode_vt(s0, q0, D as _)?;
+    let Rn = decode_vt(s1, q1, N as _)?;
+    let Rm = decode_imm5_vtsi(s2, index, M as _)?;
 
     Some(Instruction {
         mnemonic: Mnemonic::Simd(mnemonic),
@@ -977,5 +1203,13 @@ fn make_operand(vector: u32, size: u32, R: u8) -> Option<Operand> {
         (0, 2) => Some(Operand::VMulti(VectorMulti::s(R))),
         (0, 3) => Some(Operand::VMulti(VectorMulti::d(R))),
         _ => None,
+    }
+}
+
+fn replicate_bit(bit: u8, amount: usize) -> u32 {
+    if bit == 0 {
+        0
+    } else {
+        u32::MAX >> (32 - amount)
     }
 }

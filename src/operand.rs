@@ -29,6 +29,7 @@ pub enum Operand {
 
     MemXSpOff(u8, IndexMode),
 
+    Msl(u8),
     Lsl(u8),
     Lsr(u8),
     Asr(u8),

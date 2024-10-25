@@ -74,6 +74,7 @@ impl Formatter for SimpleFormatter {
                 Operand::Imm(imm) => print!("#{:#x}", imm),
                 Operand::Simm(imm) => print!("#{:#x}", Signed(imm)),
                 Operand::Lsl(x) => print!("lsl #{}", x),
+                Operand::Msl(x) => print!("msl #{}", x),
                 Operand::Lsr(x) => print!("lsr #{}", x),
                 Operand::Asr(x) => print!("asr #{}", x),
                 Operand::Ror(x) => print!("ror #{}", x),

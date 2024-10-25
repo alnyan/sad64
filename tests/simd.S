@@ -988,3 +988,169 @@ simd_3same:
     bif v1.8b, v2.8b, v3.8b
     bif v1.16b, v2.16b, v3.16b
 .size simd_3same, . - simd_3same
+
+simd_imm:
+    movi v1.4s, #0x12, lsl #24
+    orr v1.4s, #0x12, lsl #24
+    movi v1.8h, #0x7F, lsl #8
+    orr v1.8h, #0x7F, lsl #8
+    movi v1.4s, #0x12, msl #16
+    movi v1.16b, #0x1F
+    fmov v1.2s, #4.0
+
+    mvni v1.4s, #0x12, lsl #24
+    bic v1.4s, #0x12, lsl #24
+    mvni v1.8h, #0x7F, lsl #8
+    bic v1.8h, #0x7F, lsl #8
+    mvni v1.4s, #0x12, msl #16
+    fmov v1.2d, #16.0
+
+    movi v1.2d, #0
+    movi d1, #0
+.size simd_imm, . - simd_imm
+
+simd_shift_by_imm:
+    sshr v1.16b, v2.16b, #3
+    sshr v1.2d, v2.2d, #3
+    ssra v1.16b, v2.16b, #3
+    ssra v1.2d, v2.2d, #3
+    srshr v1.16b, v2.16b, #3
+    srshr v1.2d, v2.2d, #3
+    srsra v1.16b, v2.16b, #3
+    srsra v1.2d, v2.2d, #3
+    shl v1.16b, v2.16b, #3
+    shl v1.2d, v2.2d, #3
+    sqshl v1.16b, v2.16b, #3
+    sqshl v1.2d, v2.2d, #3
+    shrn v1.8b, v2.8h, #3
+    shrn v1.2s, v2.2d, #3
+    shrn2 v1.16b, v2.8h, #3
+    shrn2 v1.4s, v2.2d, #3
+    rshrn v1.8b, v2.8h, #3
+    rshrn v1.2s, v2.2d, #3
+    rshrn2 v1.16b, v2.8h, #3
+    rshrn2 v1.4s, v2.2d, #3
+    sqshrn v1.8b, v2.8h, #3
+    sqshrn v1.2s, v2.2d, #3
+    sqshrn2 v1.16b, v2.8h, #3
+    sqshrn2 v1.4s, v2.2d, #3
+    sqrshrn v1.8b, v2.8h, #3
+    sqrshrn v1.2s, v2.2d, #3
+    sqrshrn2 v1.16b, v2.8h, #3
+    sqrshrn2 v1.4s, v2.2d, #3
+    sshll v1.8h, v2.8b, #3
+    sshll v1.2d, v2.2s, #3
+    sshll2 v1.8h, v2.16b, #3
+    sshll2 v1.2d, v2.4s, #3
+    scvtf v1.4h, v2.4h, #3
+    scvtf v1.2s, v2.2s, #3
+    scvtf v1.4s, v2.4s, #3
+    scvtf v1.2d, v2.2d, #3
+    fcvtzs v1.4h, v2.4h, #3
+    fcvtzs v1.2d, v2.2d, #3
+
+    ushr v1.16b, v2.16b, #3
+    ushr v1.2d, v2.2d, #3
+    usra v1.16b, v2.16b, #3
+    usra v1.2d, v2.2d, #3
+    urshr v1.16b, v2.16b, #3
+    urshr v1.2d, v2.2d, #3
+    ursra v1.16b, v2.16b, #3
+    ursra v1.2d, v2.2d, #3
+    sri v1.16b, v2.16b, #3
+    sri v1.2d, v2.2d, #3
+    sli v1.16b, v2.16b, #3
+    sli v1.2d, v2.2d, #3
+    sqshlu v1.16b, v2.16b, #3
+    sqshlu v1.2d, v2.2d, #3
+    uqshl v1.16b, v2.16b, #3
+    uqshl v1.2d, v2.2d, #3
+    sqshrun v1.8b, v2.8h, #3
+    sqshrun v1.2s, v2.2d, #3
+    sqshrun2 v1.16b, v2.8h, #3
+    sqshrun2 v1.4s, v2.2d, #3
+    sqrshrun v1.8b, v2.8h, #3
+    sqrshrun v1.2s, v2.2d, #3
+    sqrshrun2 v1.16b, v2.8h, #3
+    sqrshrun2 v1.4s, v2.2d, #3
+    uqshrn v1.8b, v2.8h, #3
+    uqshrn v1.2s, v2.2d, #3
+    uqshrn2 v1.16b, v2.8h, #3
+    uqshrn2 v1.4s, v2.2d, #3
+    uqrshrn v1.8b, v2.8h, #3
+    uqrshrn v1.2s, v2.2d, #3
+    uqrshrn2 v1.16b, v2.8h, #3
+    uqrshrn2 v1.4s, v2.2d, #3
+    ushll v1.8h, v2.8b, #3
+    ushll v1.2d, v2.2s, #3
+    ushll2 v1.8h, v2.16b, #3
+    ushll2 v1.2d, v2.4s, #3
+    ucvtf v1.4h, v2.4h, #3
+    ucvtf v1.2d, v2.2d, #3
+    fcvtzu v1.4h, v2.4h, #3
+    fcvtzu v1.2d, v2.2d, #3
+.size simd_shift_by_imm, . - simd_shift_by_imm
+
+simd_vector_x_index:
+    # smlal smlal2
+    smlal v1.4s, v2.4h, v3.h[1]
+    smlal v1.2d, v2.2s, v3.s[2]
+    smlal2 v1.4s, v2.8h, v3.h[3]
+    # sqdmlal sqdmlal2
+    sqdmlal v1.4s, v2.4h, v3.h[1]
+    sqdmlal v1.2d, v2.2s, v3.s[2]
+    sqdmlal2 v1.4s, v2.8h, v3.h[3]
+    # smlsl smlsl2
+    smlsl v1.4s, v2.4h, v3.h[1]
+    smlsl v1.2d, v2.2s, v3.s[2]
+    smlsl2 v1.4s, v2.8h, v3.h[3]
+    # sqdmlsl sqdmlsl2
+    sqdmlsl v1.4s, v2.4h, v3.h[1]
+    sqdmlsl v1.2d, v2.2s, v3.s[2]
+    sqdmlsl2 v1.4s, v2.8h, v3.h[3]
+    # mul
+    mul v1.4h, v2.4h, v3.h[1]
+    mul v1.4s, v2.4s, v3.s[2]
+    # smull smull2
+    smull v1.4s, v2.4h, v3.h[1]
+    smull v1.2d, v2.2s, v3.s[2]
+    smull2 v1.4s, v2.8h, v3.h[3]
+    # sqdmull sqdmull2
+    sqdmull v1.4s, v2.4h, v3.h[1]
+    sqdmull v1.2d, v2.2s, v3.s[2]
+    sqdmull2 v1.4s, v2.8h, v3.h[3]
+    # sqdmulh
+    sqdmulh v1.4h, v2.4h, v3.h[1]
+    sqdmulh v1.2s, v2.2s, v3.s[2]
+    # sqrdmulh
+    sqrdmulh v1.4h, v2.4h, v3.h[1]
+    sqrdmulh v1.2s, v2.2s, v3.s[2]
+    # fmla
+    fmla v1.2s, v2.2s, v3.s[2]
+    fmla v1.2d, v2.2d, v3.d[0]
+    # fmls
+    fmls v1.2s, v2.2s, v3.s[2]
+    fmls v1.2d, v2.2d, v3.d[0]
+    # fmul
+    fmul v1.2s, v2.2s, v3.s[2]
+    fmul v1.2d, v2.2d, v3.d[0]
+    # mla
+    mla v1.2s, v2.2s, v3.s[2]
+    # umlal umlal2
+    umlal v1.4s, v2.4h, v3.h[1]
+    umlal v1.2d, v2.2s, v3.s[2]
+    umlal2 v1.4s, v2.8h, v3.h[3]
+    # mls
+    mls v1.2s, v2.2s, v3.s[2]
+    # umlsl umlsl2
+    umlsl v1.4s, v2.4h, v3.h[1]
+    umlsl v1.2d, v2.2s, v3.s[2]
+    umlsl2 v1.4s, v2.8h, v3.h[3]
+    # umull umull2
+    umull v1.4s, v2.4h, v3.h[1]
+    umull v1.2d, v2.2s, v3.s[2]
+    umull2 v1.4s, v2.8h, v3.h[3]
+    # fmulx
+    fmulx v1.2s, v2.2s, v3.s[2]
+    fmulx v1.2d, v2.2d, v3.d[0]
+.size simd_vector_x_index, . - simd_vector_x_index
