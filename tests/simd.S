@@ -1092,65 +1092,239 @@ simd_shift_by_imm:
 .size simd_shift_by_imm, . - simd_shift_by_imm
 
 simd_vector_x_index:
-    # smlal smlal2
     smlal v1.4s, v2.4h, v3.h[1]
     smlal v1.2d, v2.2s, v3.s[2]
     smlal2 v1.4s, v2.8h, v3.h[3]
-    # sqdmlal sqdmlal2
     sqdmlal v1.4s, v2.4h, v3.h[1]
     sqdmlal v1.2d, v2.2s, v3.s[2]
     sqdmlal2 v1.4s, v2.8h, v3.h[3]
-    # smlsl smlsl2
     smlsl v1.4s, v2.4h, v3.h[1]
     smlsl v1.2d, v2.2s, v3.s[2]
     smlsl2 v1.4s, v2.8h, v3.h[3]
-    # sqdmlsl sqdmlsl2
     sqdmlsl v1.4s, v2.4h, v3.h[1]
     sqdmlsl v1.2d, v2.2s, v3.s[2]
     sqdmlsl2 v1.4s, v2.8h, v3.h[3]
-    # mul
     mul v1.4h, v2.4h, v3.h[1]
     mul v1.4s, v2.4s, v3.s[2]
-    # smull smull2
     smull v1.4s, v2.4h, v3.h[1]
     smull v1.2d, v2.2s, v3.s[2]
     smull2 v1.4s, v2.8h, v3.h[3]
-    # sqdmull sqdmull2
     sqdmull v1.4s, v2.4h, v3.h[1]
     sqdmull v1.2d, v2.2s, v3.s[2]
     sqdmull2 v1.4s, v2.8h, v3.h[3]
-    # sqdmulh
     sqdmulh v1.4h, v2.4h, v3.h[1]
     sqdmulh v1.2s, v2.2s, v3.s[2]
-    # sqrdmulh
     sqrdmulh v1.4h, v2.4h, v3.h[1]
     sqrdmulh v1.2s, v2.2s, v3.s[2]
-    # fmla
     fmla v1.2s, v2.2s, v3.s[2]
     fmla v1.2d, v2.2d, v3.d[0]
-    # fmls
     fmls v1.2s, v2.2s, v3.s[2]
     fmls v1.2d, v2.2d, v3.d[0]
-    # fmul
     fmul v1.2s, v2.2s, v3.s[2]
     fmul v1.2d, v2.2d, v3.d[0]
-    # mla
     mla v1.2s, v2.2s, v3.s[2]
-    # umlal umlal2
     umlal v1.4s, v2.4h, v3.h[1]
     umlal v1.2d, v2.2s, v3.s[2]
     umlal2 v1.4s, v2.8h, v3.h[3]
-    # mls
     mls v1.2s, v2.2s, v3.s[2]
-    # umlsl umlsl2
     umlsl v1.4s, v2.4h, v3.h[1]
     umlsl v1.2d, v2.2s, v3.s[2]
     umlsl2 v1.4s, v2.8h, v3.h[3]
-    # umull umull2
     umull v1.4s, v2.4h, v3.h[1]
     umull v1.2d, v2.2s, v3.s[2]
     umull2 v1.4s, v2.8h, v3.h[3]
-    # fmulx
     fmulx v1.2s, v2.2s, v3.s[2]
     fmulx v1.2d, v2.2d, v3.d[0]
 .size simd_vector_x_index, . - simd_vector_x_index
+
+conv_float_fixed:
+    scvtf s1, w2, #3
+    scvtf d1, w2, #3
+    scvtf s1, x2, #3
+    scvtf d1, x2, #3
+    ucvtf s1, w2, #3
+    ucvtf d1, w2, #3
+    ucvtf s1, x2, #3
+    ucvtf d1, x2, #3
+    fcvtzs w1, s2, #3
+    fcvtzs w1, d2, #3
+    fcvtzs x1, s2, #3
+    fcvtzs x1, d2, #3
+    fcvtzu w1, s2, #3
+    fcvtzu w1, d2, #3
+    fcvtzu x1, s2, #3
+    fcvtzu x1, d2, #3
+.size conv_float_fixed, . - conv_float_fixed
+
+conv_float_int:
+    fcvtns w1, s2
+    fcvtns w1, d2
+    fcvtns x1, s2
+    fcvtns x1, d2
+    scvtf s1, w2
+    scvtf d1, w2
+    scvtf s1, x2
+    scvtf d1, x2
+    ucvtf s1, w2
+    ucvtf d1, w2
+    ucvtf s1, x2
+    ucvtf d1, x2
+    fcvtas w1, s2
+    fcvtas w1, d2
+    fcvtas x1, s2
+    fcvtas x1, d2
+    fcvtau w1, s2
+    fcvtau w1, d2
+    fcvtau x1, s2
+    fcvtau x1, d2
+    fmov s1, w2
+    fmov w1, s2
+    fmov d1, x2
+    fmov x1, d2
+    fmov v1.d[1], x2
+    fmov x2, v1.d[1]
+    fcvtps w1, s2
+    fcvtps w1, d2
+    fcvtps x1, s2
+    fcvtps x1, d2
+    fcvtpu w1, s2
+    fcvtpu w1, d2
+    fcvtpu x1, s2
+    fcvtpu x1, d2
+    fcvtms w1, s2
+    fcvtms w1, d2
+    fcvtms x1, s2
+    fcvtms x1, d2
+    fcvtmu w1, s2
+    fcvtmu w1, d2
+    fcvtmu x1, s2
+    fcvtmu x1, d2
+    fcvtzs w1, s2
+    fcvtzs w1, d2
+    fcvtzs x1, s2
+    fcvtzs x1, d2
+    fcvtzu w1, s2
+    fcvtzu w1, d2
+    fcvtzu x1, s2
+    fcvtzu x1, d2
+    fcvtns w1, s2
+    fcvtns w1, d2
+    fcvtns x1, s2
+    fcvtns x1, d2
+    fcvtnu w1, s2
+    fcvtnu w1, d2
+    fcvtnu x1, s2
+    fcvtnu x1, d2
+.size conv_float_int, . - conv_float_int
+
+float_1src:
+    fmov s1, s2
+    fmov d1, d2
+    fabs s1, s2
+    fabs d1, d2
+    fneg s1, s2
+    fneg d1, d2
+    fsqrt s1, s2
+    fsqrt d1, d2
+    fcvt h1, s2
+    fcvt h1, d2
+    fcvt s1, h2
+    fcvt s1, d2
+    fcvt d1, h2
+    fcvt d1, s2
+    frintn s1, s2
+    frintn d1, d2
+    frintp s1, s2
+    frintp d1, d2
+    frintm s1, s2
+    frintm d1, d2
+    frintz s1, s2
+    frintz d1, d2
+    frinta s1, s2
+    frinta d1, d2
+    frintx s1, s2
+    frintx d1, d2
+    frinti s1, s2
+    frinti d1, d2
+.size float_1src, . - float_1src
+
+float_cmp:
+    fcmp h1, h2
+    fcmp s1, s2
+    fcmp d1, d2
+    fcmp h1, #0.0
+    fcmp s1, #0.0
+    fcmp d1, #0.0
+    fcmpe h1, h2
+    fcmpe s1, s2
+    fcmpe d1, d2
+    fcmpe h1, #0.0
+    fcmpe s1, #0.0
+    fcmpe d1, #0.0
+.size float_cmp, . - float_cmp
+
+float_imm:
+    fmov h1, #4.0
+    fmov s1, #0.25
+    fmov d1, #8.0
+.size float_imm, . - float_imm
+
+float_ccmp:
+    fccmp h1, h2, #0x1, eq
+    fccmp s1, s2, #0x2, ne
+    fccmp d1, d2, #0x3, ge
+    fccmpe h1, h2, #0x4, lt
+    fccmpe s1, s2, #0x5, hi
+    fccmpe d1, d2, #0x6, hs
+.size float_ccmp, . - float_ccmp
+
+float_2src:
+    fmul h1, h2, h3
+    fmul s1, s2, s3
+    fmul d1, d2, d3
+    fdiv h1, h2, h3
+    fdiv s1, s2, s3
+    fdiv d1, d2, d3
+    fadd h1, h2, h3
+    fadd s1, s2, s3
+    fadd d1, d2, d3
+    fsub h1, h2, h3
+    fsub s1, s2, s3
+    fsub d1, d2, d3
+    fmax h1, h2, h3
+    fmax s1, s2, s3
+    fmax d1, d2, d3
+    fmin h1, h2, h3
+    fmin s1, s2, s3
+    fmin d1, d2, d3
+    fmaxnm h1, h2, h3
+    fmaxnm s1, s2, s3
+    fmaxnm d1, d2, d3
+    fminnm h1, h2, h3
+    fminnm s1, s2, s3
+    fminnm d1, d2, d3
+    fnmul h1, h2, h3
+    fnmul s1, s2, s3
+    fnmul d1, d2, d3
+.size float_2src, . - float_2src
+
+float_csel:
+    fcsel h1, h2, h3, ne
+    fcsel s1, s2, s3, eq
+    fcsel d1, d2, d3, gt
+.size float_csel, . - float_csel
+
+float_3src:
+    fmadd h1, h2, h3, h4
+    fmadd s1, s2, s3, s4
+    fmadd d1, d2, d3, d4
+    fmsub h1, h2, h3, h4
+    fmsub s1, s2, s3, s4
+    fmsub d1, d2, d3, d4
+    fnmadd h1, h2, h3, h4
+    fnmadd s1, s2, s3, s4
+    fnmadd d1, d2, d3, d4
+    fnmsub h1, h2, h3, h4
+    fnmsub s1, s2, s3, s4
+    fnmsub d1, d2, d3, d4
+.size float_3src, . - float_3src

@@ -5,6 +5,15 @@ use crate::BranchCondition;
 #[cfg(feature = "simd")]
 #[derive(Debug, Clone, Copy)]
 pub enum SimdMnemonic {
+    fmadd,
+    fmsub,
+    fnmadd,
+    fnmsub,
+    fcsel,
+    fccmp,
+    fccmpe,
+    fcmp,
+    fcmpe,
     fmov,
     movi,
     mvni,
@@ -73,6 +82,7 @@ pub enum SimdMnemonic {
     fmaxv,
     fmin,
     fminnm,
+    fnmul,
     fminnmp,
     fminnmv,
     fminp,
@@ -95,6 +105,7 @@ pub enum SimdMnemonic {
     frsqrte,
     frsqrts,
     fsqrt,
+    fcvt,
     fsub,
     mla,
     mls,
