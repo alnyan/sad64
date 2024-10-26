@@ -8,9 +8,15 @@ macro_rules! system_regs {
                 => $name:ident $( ($param:ident: $ty:ty) )? ;
         )+
     ) => {
+        #[doc = "Describes a system register (MSR)."]
+        #[allow(missing_docs)]
         #[derive(Debug, Clone, Copy)]
         pub enum SystemReg {
-            $($name $(($ty))?,)+
+            $(
+                $name $(($ty))?,
+            )+
+            /// Any other MSR, displayed in the form: `S<op0>_<op1>_C<CRn>_C<CRm>_<op2>`.
+            #[allow(missing_docs)]
             Other {
                 op0: u8,
                 op1: u8,
@@ -21,7 +27,7 @@ macro_rules! system_regs {
         }
 
         impl SystemReg {
-            pub fn decode($dir: DecodeDirection, op0: u8, op1: u8, CRn: u8, CRm: u8, op2: u8) -> Self {
+            pub(crate) fn decode($dir: DecodeDirection, op0: u8, op1: u8, CRn: u8, CRm: u8, op2: u8) -> Self {
                 match (op0, op1, CRn, CRm, op2) {
                     $( ($op0, $op1, $CRn, $CRm, $op2) $(if $if_expr)? => Self::$name $(($param))?, )+
                     _ => Self::Other { op0, op1, CRn, CRm, op2 },

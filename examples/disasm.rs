@@ -1,6 +1,6 @@
 #![feature(os_str_display)]
 
-use std::{borrow::Cow, env::args};
+use std::{env::args, fmt};
 
 use elf::{
     abi::{SHF_EXECINSTR, SHN_UNDEF, SHT_PROGBITS},
@@ -10,15 +10,24 @@ use elf::{
 use rangemap::RangeMap;
 use sad64::{decode, Formatter, SimpleFormatter, SymbolResolver};
 
+pub struct StdoutOutput;
+
+impl fmt::Write for StdoutOutput {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        print!("{}", s);
+        Ok(())
+    }
+}
+
 pub struct Resolver<'a> {
     symbol_table: &'a RangeMap<u64, String>,
 }
 
 impl<'a> SymbolResolver for Resolver<'a> {
-    fn resolve(&self, address: u64) -> Option<(std::borrow::Cow<str>, u64)> {
+    fn resolve(&self, address: u64) -> Option<(&str, u64)> {
         let (range, name) = self.symbol_table.get_key_value(&address)?;
         assert!(address >= range.start);
-        Some((Cow::Borrowed(name.as_str()), address - range.start))
+        Some((name.as_str(), address - range.start))
     }
 }
 
@@ -42,7 +51,8 @@ fn dump(name: &str, resolver: &Resolver, vaddr: u64, data: &[u8]) -> Result<(), 
         print!("\t{:08x}: ", addr);
 
         if let Some(insn) = decode(word) {
-            f.write_insn(addr, resolver, &insn);
+            f.write_insn(&mut StdoutOutput, addr, resolver, &insn).ok();
+            println!();
         } else {
             println!(".word {:#010x}", word);
         }

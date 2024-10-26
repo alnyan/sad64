@@ -353,7 +353,7 @@ fn decode_ldst_reg_lit(insn: u32) -> Option<Instruction> {
     let "oo ??? V ?? iiiiiiiiiiiiiiiiiii TTTTT" = insn;
 
     match (o, V) {
-        (0b11, 1) => return None,
+        (0b11, 1) => None,
         (_, 1) => {
             let op0 = match o {
                 0b00 => VectorMulti::s,
@@ -673,7 +673,7 @@ fn decode_ldst_reg_uimm(insn: u32) -> Option<Instruction> {
 
         // prfm
         "11 0 10" => {
-            let op0 = match Prefetch::decode(T as u8) {
+            let op0 = match Prefetch::decode(T) {
                 Some(prefetch) => Operand::Prefetch(prefetch),
                 None => Operand::Imm(T as _),
             };

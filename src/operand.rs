@@ -2,87 +2,141 @@ use core::fmt;
 
 use crate::SystemReg;
 
+/// Describes a single operand of an instruction.
 #[derive(Debug, Clone, Copy)]
 pub enum Operand {
+    /// `Wn|wzr` operand.
     W(u8),
+    /// `Xn|xzr` operand.
     X(u8),
+    /// `Xn|sp` operand.
     XSp(u8),
+    /// `Wn|wsp` operand.
     WSp(u8),
-
-    // vN.Xt
+    /// See [crate::VectorMulti].
     VMulti(VectorMulti),
-    // vN.t
+    /// See [crate::VectorSingle].
     VSingle(VectorSingle),
-    // vN.t[i]
+    /// See [crate::VectorSingle], with index.
     VSingleIndex(VectorSingle, u8),
-    // { vN.Xt, vM.Yt ... }
+    /// See [VectorMultiGroup].
     VMultiGroup(VectorMultiGroup),
-    // { vN.t, vM.t, ... }[i]
+    /// See [VectorSingleGroup].
     VSingleGroup(VectorSingleGroup),
-
+    /// Decimal immediate `#1234`.
     DecImm(u64),
+    /// Floating point immediate `#123.456`.
+    #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
+    #[cfg(feature = "std")]
     FpImm(f64),
+    /// Floating point immediate `#<float>`, used when "std" feature is not enabled.
+    FpImmUnknown,
+    /// Floating point zero constant `#0.0`.
+    FpZero,
+    /// Hexadecimal immediate `#0x1234ABCD`.
     Imm(u64),
+    /// Signed hexadecimal immediate `#-0x1234`.
     Simm(i64),
+    /// pc-relative immediate offset. Used together with [crate::SymbolResolver] to display
+    /// program locations being referenced.
     PcRelImm(i64),
+    /// pc-relative immediate offset. Resulting address calculated as:
+    /// `(pc + offset) & !0xFFF`
     Adrp(i64),
-
+    /// Xn|sp-relative offset `[Xn|sp, <index>]`. See [crate::IndexMode].
     MemXSpOff(u8, IndexMode),
-
+    /// Repeating ones shift left `msl #16`.
     Msl(u8),
+    /// Left shift `lsl #3`.
     Lsl(u8),
+    /// Right shift `lsr #3`.
     Lsr(u8),
+    /// Arithmetic right shift `asr #3`.
     Asr(u8),
+    /// Rotate right `ror #3`.
     Ror(u8),
-
+    /// Register extension operand. See [crate::RegExtend].
     RegExtend(RegExtend),
-
+    /// Memory barrier operand. See [crate::Barrier].
     Barrier(Barrier),
+    /// System (MSR) register operand. See [crate::SystemReg].
     Sys(SystemReg),
+    /// Pair of "system" operands as used in `sys`/`sysl` instructions: `c0, c2`.
     SysC(u8, u8),
+    /// `sys` instruction operand. See [crate::SysOp].
     SysOp(SysOp),
+    /// `daifset` pseudo-MSR.
     Daifset,
+    /// `daifclr` pseudo-MSR.
     Daifclr,
+    /// `spsel` MSR.
     Spsel,
+    /// Prefetch operation operand. See [crate::Prefetch].
     Prefetch(Prefetch),
-
+    /// Conditional operand. See [crate::BranchCondition].
     Cond(BranchCondition),
 }
 
+/// Describes a part of a vector being referenced.
 #[derive(Debug, Clone, Copy)]
 pub enum VectorPart {
+    /// Low scalar part of the vector.
     LowScalar,
+    /// Low 64-bit half of the vector.
     Low64,
+    /// Whole vector.
     All,
 }
 
+/// Describes a vector register reference in the form: `<vN>.<T>[<index>]` where `<T>` is `8b`,
+/// `16b`, ..., `1d`, `2d`, `1q`.
 #[derive(Debug, Clone, Copy)]
 pub struct VectorMulti {
+    /// Register index (`<vN>`).
     pub index: u8,
+    /// Lane width. Can be 8, 16, 32, 64 or 128 bits.
     pub lane_width: u8,
+    /// Optional lane index (`[<index>]`).
     pub lane_index: Option<u8>,
+    /// Part of the vector being referenced.
     pub part: VectorPart,
 }
 
+/// Describes a vector register reference in the form: `<vN>.<T>` where `<T>` is `B`, `H`, `S`
+/// or `D`.
 #[derive(Debug, Clone, Copy)]
 pub struct VectorSingle {
+    /// Register index (`<vN>`).
     pub index: u8,
+    /// Lane width. Can be 8, 16, 32 or 64 bits.
     pub lane_width: u8,
 }
 
+/// Describes a group of operands in the form: `{ <vN>.<T>, <vN + 1>.<T>, ... }` where
+/// `<T>` is `8b`, `16b`, ..., `1d`, `2d`, `1q`.
 #[derive(Debug, Clone, Copy)]
 pub struct VectorMultiGroup {
+    /// "Base" register of the group.
     pub base: VectorMulti,
+    /// Length of the group.
     pub size: usize,
 }
 
+/// Describes a group of operands in the form: `{ <vN>.<T>, <vN + 1>.<T>, ... }[<index>]`, where
+/// `<T>` is `B`, `H`, `S` or `D`.
 #[derive(Debug, Clone, Copy)]
 pub struct VectorSingleGroup {
+    /// "Base" register of the group.
     pub base: VectorSingle,
+    /// Length of the group.
     pub size: usize,
+    /// Index of the group.
     pub index: u8,
 }
 
+/// Describes a branch condition as used in `b.<cond>` instruction, or a conditional operand as
+/// used in instructions such as `ccmp`.
+#[allow(missing_docs)]
 #[derive(Debug, Clone, Copy)]
 pub enum BranchCondition {
     eq,
@@ -103,6 +157,8 @@ pub enum BranchCondition {
     nv,
 }
 
+/// Describes a register extension method.
+#[allow(missing_docs)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RegExtendWord {
     uxtb,
@@ -116,12 +172,17 @@ pub enum RegExtendWord {
     lsl,
 }
 
+/// Describes an extended-register offset
 #[derive(Debug, Clone, Copy)]
 pub struct RegExtend {
+    /// Method by which the register is extended.
     pub word: RegExtendWord,
+    /// Amount by which the register is extended.
     pub amount: Option<u8>,
 }
 
+/// Describes an operand to the `at` instruction.
+#[allow(missing_docs)]
 #[derive(Debug, Clone, Copy)]
 pub enum At {
     s1e1r,
@@ -138,6 +199,8 @@ pub enum At {
     s12e0w,
 }
 
+/// Describes an operand to the `dc` instruction.
+#[allow(missing_docs)]
 #[derive(Debug, Clone, Copy)]
 pub enum Dc {
     zva,
@@ -150,6 +213,8 @@ pub enum Dc {
     cisw,
 }
 
+/// Describes an operand to the `ic` instruction.
+#[allow(missing_docs)]
 #[derive(Debug, Clone, Copy)]
 pub enum Ic {
     ialluis,
@@ -157,6 +222,8 @@ pub enum Ic {
     ivau,
 }
 
+/// Describes an operand to the `tlbi` instruction.
+#[allow(missing_docs)]
 #[derive(Debug, Clone, Copy)]
 pub enum Tlbi {
     alle1,
@@ -190,53 +257,81 @@ pub enum Tlbi {
     vmalls12e1is,
 }
 
+/// Describes a system operation as used by `sys` instruction.
 #[derive(Debug, Clone, Copy)]
 pub enum SysOp {
+    /// `at` instruction.
     At(At),
+    /// `dc` instruction.
     Dc(Dc),
+    /// `ic` instruction.
     Ic(Ic),
+    /// `tlbi` instruction.
     Tlbi(Tlbi),
 }
 
+/// Describes a memory domain affected by a barrier operation.
 #[derive(Debug, Clone, Copy)]
 pub enum BarrierDomain {
+    /// Outer shareable domain.
     OuterShareable,
+    /// Non-shareable domain.
     Nonshareable,
+    /// Inner shareable domain.
     InnerShareable,
+    /// Full system.
     FullSystem,
 }
 
+/// Describes a memory/instruction synchronization operation.
 #[derive(Debug, Clone, Copy)]
 pub enum Barrier {
+    /// Barrier on reads for a given domain.
     Reads(BarrierDomain),
+    /// Barrier on writes for a given domain.
     Writes(BarrierDomain),
+    /// Barrier on reads/writes for a given domain.
     All(BarrierDomain),
 }
 
+/// Describes type of a prefetch operation.
 #[derive(Debug, Clone, Copy)]
 pub enum PrefetchWhat {
+    /// Prefetch for load.
     pld,
+    /// Preload instructions.
     pli,
+    /// Prefetch for store.
     pst,
 }
 
+/// Describes a prefetch operation.
 #[derive(Debug, Clone, Copy)]
 pub struct Prefetch {
+    /// Describes prefetch type.
     pub what: PrefetchWhat,
+    /// Describes target cache level. 1 = L1, 2 = L2, 3 = L3.
     pub level: u8,
+    /// * If `true`, defines a `KEEP` retention policy, allocating in the cache normally.
+    /// * If `false`, defines a `STRM` retention policy for streaming or non-temporal prefetch for
+    /// data that is used only once.
     pub keep: bool,
 }
 
+/// Index mode used with Xn|sp-relative addressing.
 #[derive(Debug, Clone, Copy)]
 pub enum IndexMode {
+    /// Pre-indexed mode: `[Xn|sp, #<imm>]!`.
     PreIndex(i64),
-
+    /// Unsigned immediate offset: `[Xn|sp, #<pimm>]`.
     Unsigned(u64),
+    /// Signed immediate offset: `[Xn|sp, #<simm>]`.
     Signed(i64),
-
+    /// Register offset: `[Xn|sp, Xm]`.
     X(u8),
-
+    /// Offset by `Wm`, extended as described in [RegExtend].
     WExt(u8, RegExtend),
+    /// Offset by `Xm`, extended as described in [RegExtend].
     XExt(u8, RegExtend),
 }
 
@@ -267,7 +362,7 @@ impl fmt::Display for Barrier {
 macro_rules! reg_extend_cons {
     ($($word:ident),+) => {
         $(
-            pub fn $word(amount: Option<u8>) -> Self {
+            pub(crate) fn $word(amount: Option<u8>) -> Self {
                 Self {
                     word: RegExtendWord::$word,
                     amount,
@@ -279,11 +374,11 @@ macro_rules! reg_extend_cons {
 impl RegExtend {
     reg_extend_cons!(uxtb, uxth, uxtw, uxtx, sxtb, sxtw, sxth, sxtx, lsl);
 
-    pub fn is_displayed(&self) -> bool {
-        self.word != RegExtendWord::lsl || !self.amount.is_none()
+    pub(crate) fn is_displayed(&self) -> bool {
+        self.word != RegExtendWord::lsl || self.amount.is_some()
     }
 
-    pub fn decode_index(Rm: u8, option: u8, amount: Option<u8>) -> Option<IndexMode> {
+    pub(crate) fn decode_index(Rm: u8, option: u8, amount: Option<u8>) -> Option<IndexMode> {
         let extend = Self::decode4(option, amount)?;
         let index = match option & 1 != 0 {
             false => IndexMode::WExt(Rm, extend),
@@ -292,7 +387,7 @@ impl RegExtend {
         Some(index)
     }
 
-    pub fn decode4(option: u8, amount: Option<u8>) -> Option<Self> {
+    pub(crate) fn decode4(option: u8, amount: Option<u8>) -> Option<Self> {
         match option {
             0b010 => Some(Self::uxtw(amount)),
             0b011 => Some(Self::lsl(amount)),
@@ -302,7 +397,7 @@ impl RegExtend {
         }
     }
 
-    pub fn decode(option: u8, amount: Option<u8>) -> Self {
+    pub(crate) fn decode(option: u8, amount: Option<u8>) -> Self {
         match option {
             0 => Self::uxtb(amount),
             1 => Self::uxth(amount),
@@ -367,7 +462,7 @@ impl fmt::Display for SysOp {
 }
 
 impl Prefetch {
-    pub fn decode(rt: u8) -> Option<Self> {
+    pub(crate) fn decode(rt: u8) -> Option<Self> {
         let keep = rt & 1 == 0;
         let level = ((rt >> 1) & 0x3) + 1;
         if level == 0b100 {
@@ -395,7 +490,7 @@ impl fmt::Display for Prefetch {
 }
 
 impl VectorMulti {
-    pub fn b(x: u8) -> Self {
+    pub(crate) fn b(x: u8) -> Self {
         Self {
             index: x,
             lane_width: 8,
@@ -404,7 +499,7 @@ impl VectorMulti {
         }
     }
 
-    pub fn h(x: u8) -> Self {
+    pub(crate) fn h(x: u8) -> Self {
         Self {
             index: x,
             lane_width: 16,
@@ -413,7 +508,7 @@ impl VectorMulti {
         }
     }
 
-    pub fn s(x: u8) -> Self {
+    pub(crate) fn s(x: u8) -> Self {
         Self {
             index: x,
             lane_width: 32,
@@ -422,7 +517,7 @@ impl VectorMulti {
         }
     }
 
-    pub fn d(x: u8) -> Self {
+    pub(crate) fn d(x: u8) -> Self {
         Self {
             index: x,
             lane_width: 64,
@@ -431,7 +526,7 @@ impl VectorMulti {
         }
     }
 
-    pub fn q(x: u8) -> Self {
+    pub(crate) fn q(x: u8) -> Self {
         Self {
             index: x,
             lane_width: 128,
@@ -440,7 +535,7 @@ impl VectorMulti {
         }
     }
 
-    pub fn v8b(x: u8, i: Option<u8>) -> Self {
+    pub(crate) fn v8b(x: u8, i: Option<u8>) -> Self {
         Self {
             index: x,
             lane_width: 8, // or 1
@@ -449,7 +544,7 @@ impl VectorMulti {
         }
     }
 
-    pub fn v16b(x: u8, i: Option<u8>) -> Self {
+    pub(crate) fn v16b(x: u8, i: Option<u8>) -> Self {
         Self {
             index: x,
             lane_width: 8, // or 1
@@ -458,7 +553,7 @@ impl VectorMulti {
         }
     }
 
-    pub fn v4h(x: u8, i: Option<u8>) -> Self {
+    pub(crate) fn v4h(x: u8, i: Option<u8>) -> Self {
         Self {
             index: x,
             lane_width: 16,
@@ -467,7 +562,7 @@ impl VectorMulti {
         }
     }
 
-    pub fn v8h(x: u8, i: Option<u8>) -> Self {
+    pub(crate) fn v8h(x: u8, i: Option<u8>) -> Self {
         Self {
             index: x,
             lane_width: 16,
@@ -476,7 +571,7 @@ impl VectorMulti {
         }
     }
 
-    pub fn v2s(x: u8, i: Option<u8>) -> Self {
+    pub(crate) fn v2s(x: u8, i: Option<u8>) -> Self {
         Self {
             index: x,
             lane_width: 32,
@@ -485,7 +580,7 @@ impl VectorMulti {
         }
     }
 
-    pub fn v4s(x: u8, i: Option<u8>) -> Self {
+    pub(crate) fn v4s(x: u8, i: Option<u8>) -> Self {
         Self {
             index: x,
             lane_width: 32,
@@ -494,7 +589,7 @@ impl VectorMulti {
         }
     }
 
-    pub fn v1d(x: u8, i: Option<u8>) -> Self {
+    pub(crate) fn v1d(x: u8, i: Option<u8>) -> Self {
         Self {
             index: x,
             lane_width: 64,
@@ -503,7 +598,7 @@ impl VectorMulti {
         }
     }
 
-    pub fn v2d(x: u8, i: Option<u8>) -> Self {
+    pub(crate) fn v2d(x: u8, i: Option<u8>) -> Self {
         Self {
             index: x,
             lane_width: 64,
@@ -512,16 +607,7 @@ impl VectorMulti {
         }
     }
 
-    pub fn v1q(x: u8, i: Option<u8>) -> Self {
-        Self {
-            index: x,
-            lane_width: 128,
-            lane_index: i,
-            part: VectorPart::All,
-        }
-    }
-
-    pub fn with_index(self, index: u8) -> Self {
+    pub(crate) fn with_index(self, index: u8) -> Self {
         Self { index, ..self }
     }
 }
@@ -552,32 +638,32 @@ impl fmt::Display for VectorMulti {
 }
 
 impl VectorSingle {
-    pub fn b(index: u8) -> Self {
+    pub(crate) fn b(index: u8) -> Self {
         Self {
             index,
             lane_width: 8,
         }
     }
-    pub fn h(index: u8) -> Self {
+    pub(crate) fn h(index: u8) -> Self {
         Self {
             index,
             lane_width: 16,
         }
     }
-    pub fn s(index: u8) -> Self {
+    pub(crate) fn s(index: u8) -> Self {
         Self {
             index,
             lane_width: 32,
         }
     }
-    pub fn d(index: u8) -> Self {
+    pub(crate) fn d(index: u8) -> Self {
         Self {
             index,
             lane_width: 64,
         }
     }
 
-    pub fn with_index(self, index: u8) -> Self {
+    pub(crate) fn with_index(self, index: u8) -> Self {
         Self { index, ..self }
     }
 }
@@ -665,7 +751,6 @@ mod tests {
         assert_eq!(format!("{}", VectorMulti::v4s(17, Some(1))), "v17.4s[1]");
         assert_eq!(format!("{}", VectorMulti::v2d(21, None)), "v21.2d");
         assert_eq!(format!("{}", VectorMulti::v2d(21, Some(1))), "v21.2d[1]");
-        assert_eq!(format!("{}", VectorMulti::v1q(31, None)), "v31.1q");
 
         assert_eq!(format!("{}", VectorMulti::v8b(1, Some(0))), "v1.8b[0]");
     }

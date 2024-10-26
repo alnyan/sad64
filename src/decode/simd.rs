@@ -15,7 +15,7 @@ pub fn decode_simd(insn: u32) -> Option<Instruction> {
         "01?1 111 00 00?? ?? ? 0????1 ??????????" => decode_simd_scalar_copy(insn),
         "01?1 111 0? ?100 00 ? ????10 ??????????" => decode_simd_scalar_2reg_misc(insn),
         "01?1 111 0? ?110 00 ? ????10 ??????????" => decode_simd_scalar_pairwise(insn),
-        "01?1 111 0? ?1?? ?? ? ????10 ??????????" => return None,
+        "01?1 111 0? ?1?? ?? ? ????10 ??????????" => None,
         "01?1 111 0? ?1?? ?? ? ?????? ??????????" => decode_simd_scalar_3diff_same(insn),
         "01?1 111 10 ???? ?? ? ?????1 ??????????" => decode_simd_scalar_shift_imm(insn),
         "01?1 111 1? ???? ?? ? ?????0 ??????????" => decode_simd_scalar_x_index(insn),
@@ -25,7 +25,7 @@ pub fn decode_simd(insn: u32) -> Option<Instruction> {
         "0??0 111 00 00?? ?? ? 0????1 ??????????" => decode_simd_copy(insn),
         "0??0 111 0? ?100 00 ? ????10 ??????????" => decode_2reg_misc(insn),
         "0??0 111 0? ?110 00 ? ????10 ??????????" => decode_across_lanes(insn),
-        "0??0 111 0? ?1?? ?? ? ????10 ??????????" => return None,
+        "0??0 111 0? ?1?? ?? ? ????10 ??????????" => None,
         "0??0 111 0? ?1?? ?? ? ?????? ??????????" => decode_3diff_same(insn),
         "0??0 111 10 0000 ?? ? ?????1 ??????????" => decode_simd_modified_imm(insn),
         "0??0 111 10 ???? ?? ? ?????1 ??????????" => decode_simd_shifted_imm(insn),
@@ -39,7 +39,7 @@ pub fn decode_simd(insn: u32) -> Option<Instruction> {
         "?0?1 111 0? ?1?? ?? ? ????10 ??????????" => decode_float_2src(insn),
         "?0?1 111 0? ?1?? ?? ? ????11 ??????????" => decode_float_csel(insn),
         "?0?1 111 1? ???? ?? ? ?????? ??????????" => decode_float_3src(insn),
-        _ => return None,
+        _ => None,
     }
 }
 
@@ -254,7 +254,7 @@ fn decode_simd_scalar_2reg_misc(insn: u32) -> Option<Instruction> {
     let op2 = match imm0 {
         Imm::A => None,
         Imm::B => Some(Operand::DecImm(0)),
-        Imm::C => Some(Operand::FpImm(0.0)),
+        Imm::C => Some(Operand::FpZero),
     };
 
     Some(Instruction {
@@ -707,7 +707,7 @@ fn decode_2reg_misc(insn: u32) -> Option<Instruction> {
     let op2 = match imm {
         0 => None,
         1 => Some(Operand::DecImm(0)),
-        2 => Some(Operand::FpImm(0.0)),
+        2 => Some(Operand::FpZero),
         _ => unreachable!(),
     };
 
@@ -911,19 +911,14 @@ fn decode_simd_modified_imm(insn: u32) -> Option<Instruction> {
             return None;
         }
 
-        let B = (!b) & 1;
-        let exp = ((B << 2) | (c << 1) | d) as i32 - 3;
-        let mantissa = (16 + ((e << 3) | (f << 2) | (g << 1) | h)) / 16;
-        let S = match a != 0 {
-            false => 1.0,
-            true => -1.0,
-        };
-        let value = S * (exp as f64).exp2() * (mantissa as f64);
+        let imm = decode_fp_immediate([
+            a as _, b as _, c as _, d as _, e as _, f as _, g as _, h as _,
+        ]);
         let Rd = decode_vt(o + 2, Q, D as _)?;
 
         return Some(Instruction {
             mnemonic: Mnemonic::Simd(SimdMnemonic::fmov),
-            operands: [Some(Rd), Some(Operand::FpImm(value)), None, None],
+            operands: [Some(Rd), Some(imm), None, None],
         });
     }
 
@@ -1297,7 +1292,7 @@ fn decode_float_compare(insn: u32) -> Option<Instruction> {
     let Rd = decode_scalar(s, N as _)?;
     let Rn = match (O >> 3) & 1 != 0 {
         false => decode_scalar(s, M as _)?,
-        true => Operand::FpImm(0.0),
+        true => Operand::FpZero,
     };
 
     Some(Instruction {
@@ -1318,20 +1313,14 @@ fn decode_float_imm(insn: u32) -> Option<Instruction> {
         _ => t + 2,
     };
 
+    let imm = decode_fp_immediate([
+        a as _, b as _, c as _, d as _, e as _, f as _, g as _, h as _,
+    ]);
     let Rd = decode_scalar(s, D as _)?;
-
-    let B = (!b) & 1;
-    let exp = ((B << 2) | (c << 1) | d) as i32 - 3;
-    let mantissa = (16 + ((e << 3) | (f << 2) | (g << 1) | h)) / 16;
-    let S = match a != 0 {
-        false => 1.0,
-        true => -1.0,
-    };
-    let value = S * (exp as f64).exp2() * (mantissa as f64);
 
     Some(Instruction {
         mnemonic: Mnemonic::Simd(SimdMnemonic::fmov),
-        operands: [Some(Rd), Some(Operand::FpImm(value)), None, None],
+        operands: [Some(Rd), Some(imm), None, None],
     })
 }
 
@@ -1465,7 +1454,7 @@ fn decode_float_3src(insn: u32) -> Option<Instruction> {
 
 fn decode_imm5_vtsi(size: u32, i: u32, R: u8) -> Option<Operand> {
     let (op, index): (fn(_) -> _, _) = match size {
-        0 => (VectorSingle::b, i >> 0),
+        0 => (VectorSingle::b, i),
         1 => (VectorSingle::h, i >> 1),
         2 => (VectorSingle::s, i >> 2),
         3 => (VectorSingle::d, i >> 3),
@@ -1504,5 +1493,31 @@ fn replicate_bit(bit: u8, amount: usize) -> u32 {
         0
     } else {
         u32::MAX >> (32 - amount)
+    }
+}
+
+fn decode_fp_immediate(bits: [u8; 8]) -> Operand {
+    let mantissa = (16 + ((bits[4] << 3) | (bits[5] << 2) | (bits[6] << 1) | bits[7])) / 16;
+
+    #[cfg(feature = "std")]
+    {
+        let B = (!bits[1]) & 1;
+        let exp = ((B << 2) | (bits[2] << 1) | bits[3]) as i32 - 3;
+        let S = match bits[0] != 0 {
+            false => 1.0,
+            true => -1.0,
+        };
+        let value = S * (exp as f64).exp2() * (mantissa as f64);
+
+        Operand::FpImm(value)
+    }
+
+    #[cfg(not(feature = "std"))]
+    {
+        if mantissa == 0 {
+            Operand::FpZero
+        } else {
+            Operand::FpImmUnknown
+        }
     }
 }

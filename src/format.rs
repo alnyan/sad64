@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt};
+use core::fmt;
 
 use crate::{IndexMode, Instruction, Operand};
 
@@ -25,24 +25,47 @@ trait NumberLike {
 
 struct Signed<T: Ord + NumberLike>(pub T);
 
+/// Trait for printing instructions.
 pub trait Formatter {
-    fn write_insn<R: SymbolResolver>(&mut self, pc: u64, resolver: &R, insn: &Instruction);
+    /// Writes the instruction to output `f`.
+    fn write_insn<W: fmt::Write, R: SymbolResolver>(
+        &mut self,
+        f: &mut W,
+        pc: u64,
+        resolver: &R,
+        insn: &Instruction,
+    ) -> fmt::Result;
 }
 
+/// Trait for resolving addresses to their respective symbols in the binary.
 pub trait SymbolResolver {
-    fn resolve(&self, address: u64) -> Option<(Cow<str>, u64)>;
+    /// Given an address, returns a symbol it refers to, as well as an offset within the symbol.
+    fn resolve(&self, address: u64) -> Option<(&str, u64)>;
 }
 
+/// Basic instruction formatter, prints instrction followed by its operands.
+/// Uses [SymbolResolver] to resolve pc-relative addresses to symbol names and offsets.
 pub struct SimpleFormatter;
+/// Dummy symbol resolver.
 pub struct NoopResolver;
 
+/// Helper type to print instructions to [std::io::Stdout].
+#[cfg(feature = "std")]
+pub struct StdoutOutput;
+
 impl Formatter for SimpleFormatter {
-    fn write_insn<R: SymbolResolver>(&mut self, pc: u64, resolver: &R, insn: &Instruction) {
-        print!("{} ", insn.mnemonic);
+    fn write_insn<W: fmt::Write, R: SymbolResolver>(
+        &mut self,
+        f: &mut W,
+        pc: u64,
+        resolver: &R,
+        insn: &Instruction,
+    ) -> fmt::Result {
+        write!(f, "{} ", insn.mnemonic)?;
 
         for (i, op) in insn.operands.iter().filter_map(|x| *x).enumerate() {
             if i != 0 {
-                print!(", ");
+                write!(f, ", ")?;
             }
 
             match op {
@@ -50,127 +73,124 @@ impl Formatter for SimpleFormatter {
                     let address = pc.wrapping_add_signed(imm);
 
                     match resolver.resolve(address) {
-                        Some((location, 0)) => print!("{:#x} <{}>", address, location),
+                        Some((location, 0)) => write!(f, "{:#x} <{}>", address, location)?,
                         Some((location, offset)) => {
-                            print!("{:#x} <{} + {:#x}>", address, location, offset)
+                            write!(f, "{:#x} <{} + {:#x}>", address, location, offset)?
                         }
-                        None => print!("{:#x}", address),
+                        None => write!(f, "{:#x}", address)?,
                     }
                 }
                 Operand::Adrp(imm) => {
                     let address = (pc.wrapping_add_signed(imm)) & !0xFFF;
 
                     match resolver.resolve(address) {
-                        Some((location, 0)) => print!("{:#x} <{}>", address, location),
+                        Some((location, 0)) => write!(f, "{:#x} <{}>", address, location)?,
                         Some((location, offset)) => {
-                            print!("{:#x} <{} + {:#x}>", address, location, offset)
+                            write!(f, "{:#x} <{} + {:#x}>", address, location, offset)?
                         }
-                        None => print!("{:#x}", address),
+                        None => write!(f, "{:#x}", address)?,
                     }
                 }
 
-                Operand::DecImm(imm) => print!("#{}", imm),
-                Operand::FpImm(imm) => print!("#{:?}", imm),
-                Operand::Imm(imm) => print!("#{:#x}", imm),
-                Operand::Simm(imm) => print!("#{:#x}", Signed(imm)),
-                Operand::Lsl(x) => print!("lsl #{}", x),
-                Operand::Msl(x) => print!("msl #{}", x),
-                Operand::Lsr(x) => print!("lsr #{}", x),
-                Operand::Asr(x) => print!("asr #{}", x),
-                Operand::Ror(x) => print!("ror #{}", x),
+                Operand::DecImm(imm) => write!(f, "#{}", imm)?,
+                #[cfg(feature = "std")]
+                Operand::FpImm(imm) => write!(f, "#{:?}", imm)?,
+                Operand::FpImmUnknown => write!(f, "#<float>")?,
+                Operand::FpZero => write!(f, "#0.0")?,
+                Operand::Imm(imm) => write!(f, "#{:#x}", imm)?,
+                Operand::Simm(imm) => write!(f, "#{:#x}", Signed(imm))?,
+                Operand::Lsl(x) => write!(f, "lsl #{}", x)?,
+                Operand::Msl(x) => write!(f, "msl #{}", x)?,
+                Operand::Lsr(x) => write!(f, "lsr #{}", x)?,
+                Operand::Asr(x) => write!(f, "asr #{}", x)?,
+                Operand::Ror(x) => write!(f, "ror #{}", x)?,
 
                 // Register
-                Operand::XSp(31) => print!("sp"),
-                Operand::XSp(x) => print!("x{}", x),
+                Operand::XSp(31) => write!(f, "sp")?,
+                Operand::XSp(x) => write!(f, "x{}", x)?,
 
-                Operand::WSp(31) => print!("wsp"),
-                Operand::WSp(x) => print!("w{}", x),
+                Operand::WSp(31) => write!(f, "wsp")?,
+                Operand::WSp(x) => write!(f, "w{}", x)?,
 
-                Operand::X(31) => print!("xzr"),
-                Operand::X(x) => print!("x{}", x),
-                Operand::W(31) => print!("wzr"),
-                Operand::W(x) => print!("w{}", x),
+                Operand::X(31) => write!(f, "xzr")?,
+                Operand::X(x) => write!(f, "x{}", x)?,
+                Operand::W(31) => write!(f, "wzr")?,
+                Operand::W(x) => write!(f, "w{}", x)?,
 
                 // SIMD register
-                Operand::VMulti(v) => print!("{}", v),
-                Operand::VSingle(v) => print!("{}", v),
-                Operand::VSingleIndex(v, i) => print!("{}[{}]", v, i),
-                Operand::VMultiGroup(grp) => print!("{}", grp),
-                Operand::VSingleGroup(grp) => print!("{}", grp),
+                Operand::VMulti(v) => write!(f, "{}", v)?,
+                Operand::VSingle(v) => write!(f, "{}", v)?,
+                Operand::VSingleIndex(v, i) => write!(f, "{}[{}]", v, i)?,
+                Operand::VMultiGroup(grp) => write!(f, "{}", grp)?,
+                Operand::VSingleGroup(grp) => write!(f, "{}", grp)?,
 
                 // Memory
                 Operand::MemXSpOff(x, off) => {
-                    print!("[");
+                    write!(f, "[")?;
                     if x == 31 {
-                        print!("sp");
+                        write!(f, "sp")?;
                     } else {
-                        print!("x{}", x);
+                        write!(f, "x{}", x)?;
                     }
 
                     match off {
-                        IndexMode::WExt(x, ext) => {
-                            if ext.is_displayed() {
-                                print!(", w{}, {}]", x, ext);
-                            } else {
-                                print!(", w{}]", x);
-                            }
+                        IndexMode::WExt(x, ext) if ext.is_displayed() => {
+                            write!(f, ", w{}, {}]", x, ext)?
                         }
-                        IndexMode::XExt(x, ext) => {
-                            if ext.is_displayed() {
-                                print!(", x{}, {}]", x, ext);
-                            } else {
-                                print!(", x{}]", x);
-                            }
+                        IndexMode::WExt(x, _) => write!(f, ", w{}]", x)?,
+                        IndexMode::XExt(x, ext) if ext.is_displayed() => {
+                            write!(f, ", x{}, {}]", x, ext)?
                         }
-                        IndexMode::X(x) => print!(", x{}]", x),
-                        IndexMode::Signed(0) | IndexMode::Unsigned(0) => print!("]"),
-                        IndexMode::Signed(x) => print!(", #{:#x}]", Signed(x)),
-                        IndexMode::Unsigned(x) => print!(", #{:#x}]", x),
-                        IndexMode::PreIndex(x) => print!(", #{:#x}]!", Signed(x)),
+                        IndexMode::XExt(x, _) => write!(f, ", x{}]", x)?,
+                        IndexMode::X(x) => write!(f, ", x{}]", x)?,
+                        IndexMode::Signed(0) | IndexMode::Unsigned(0) => write!(f, "]")?,
+                        IndexMode::Signed(x) => write!(f, ", #{:#x}]", Signed(x))?,
+                        IndexMode::Unsigned(x) => write!(f, ", #{:#x}]", x)?,
+                        IndexMode::PreIndex(x) => write!(f, ", #{:#x}]!", Signed(x))?,
                     }
                 }
 
-                Operand::RegExtend(ext) => {
-                    print!("{}", ext);
-                }
+                Operand::RegExtend(ext) => write!(f, "{}", ext)?,
+                Operand::Barrier(b) => write!(f, "{}", b)?,
+                Operand::Sys(s) => write!(f, "{}", s)?,
+                Operand::SysC(n, m) => write!(f, "c{}, c{}", n, m)?,
+                Operand::SysOp(t) => write!(f, "{}", t)?,
+                Operand::Daifset => write!(f, "daifset")?,
+                Operand::Daifclr => write!(f, "daifclr")?,
+                Operand::Spsel => write!(f, "spsel")?,
+                Operand::Prefetch(prfm) => write!(f, "{}", prfm)?,
 
-                Operand::Barrier(b) => print!("{}", b),
-                Operand::Sys(s) => print!("{}", s),
-                Operand::SysC(n, m) => print!("c{}, c{}", n, m),
-                Operand::SysOp(t) => print!("{}", t),
-                Operand::Daifset => print!("daifset"),
-                Operand::Daifclr => print!("daifclr"),
-                Operand::Spsel => print!("spsel"),
-                Operand::Prefetch(prfm) => print!("{}", prfm),
-
-                Operand::Cond(cond) => {
-                    print!("{:?}", cond)
-                }
+                Operand::Cond(cond) => write!(f, "{:?}", cond)?,
             }
         }
-        println!();
+
+        Ok(())
     }
 }
 
 impl SymbolResolver for NoopResolver {
-    fn resolve(&self, _address: u64) -> Option<(Cow<str>, u64)> {
+    fn resolve(&self, _address: u64) -> Option<(&str, u64)> {
         None
     }
 }
 
 impl<T: Ord + NumberLike + fmt::LowerHex> fmt::LowerHex for Signed<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let prefix = if f.alternate() { "0x" } else { "" };
-        let bare_hex = format!("{:x}", self.0.absolute());
-        f.pad_integral(self.0.sign(), prefix, &bare_hex)
+        match self.0.sign() {
+            false => {
+                f.write_str("-")?;
+                fmt::LowerHex::fmt(&self.0.absolute(), f)
+            }
+            true => fmt::LowerHex::fmt(&self.0, f),
+        }
     }
 }
 
-impl<T: Ord + NumberLike + fmt::UpperHex> fmt::UpperHex for Signed<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let prefix = if f.alternate() { "0x" } else { "" };
-        let bare_hex = format!("{:X}", self.0.absolute());
-        f.pad_integral(self.0.sign(), prefix, &bare_hex)
+#[cfg(feature = "std")]
+impl fmt::Write for StdoutOutput {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        print!("{}", s);
+        Ok(())
     }
 }
 
